@@ -4,8 +4,8 @@ from parser_module import Parse
 from indexer import Indexer
 from searcher import Searcher
 import utils
-
-
+import glob
+from pathlib import Path
 def run_engine():
     """
 
@@ -17,15 +17,33 @@ def run_engine():
     r = ReadFile(corpus_path=config.get__corpusPath())
     p = Parse()
     indexer = Indexer(config)
+    globList = []
 
+    """
+    for path in Path('./Data').rglob('*.parquet'):
+        print("again")
+        for idx, document in enumerate(r.read_file(file_name=path)):
+            # parse the document
+            #print("after")
+            parsed_document = p.parse_doc(document)
+            number_of_documents += 1
+            #print(idx)
+            # index the document data
+            indexer.add_new_doc(parsed_document)
+    """
+   # documents_list = r.read_file(file_name='./Data/covid19_07-08.snappy.parquet')
     documents_list = r.read_file(file_name='sample3.parquet')
-    # Iterate over every document in the file
     for idx, document in enumerate(documents_list):
         # parse the document
+        # print("after")
         parsed_document = p.parse_doc(document)
         number_of_documents += 1
+        # print(idx)
         # index the document data
         indexer.add_new_doc(parsed_document)
+
+    # Iterate over every document in the file
+
     print('Finished parsing and indexing. Starting to export files')
 
     utils.save_obj(indexer.inverted_idx, "inverted_idx")

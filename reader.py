@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-
+import pyarrow.parquet as pq
 
 class ReadFile:
     def __init__(self, corpus_path):
@@ -14,5 +14,5 @@ class ReadFile:
         :return: a dataframe contains tweets.
         """
         full_path = os.path.join(self.corpus_path, file_name)
-        df = pd.read_parquet(full_path, engine="pyarrow")
+        df = pd.read_parquet(full_path, engine = "pyarrow")
         return df.values.tolist()
