@@ -1,3 +1,5 @@
+import time
+
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from document import Document
@@ -5,11 +7,12 @@ import re
 import math
 from nltk.corpus import words
 
+
 class Parse:
 
     def __init__(self):
         self.stop_words = stopwords.words('english')
-
+        self.CapitalTerms = {}
     def CheckIfNumber(self, term):
         ModifiedNumber = ""
         for digit in term:
@@ -61,7 +64,7 @@ class Parse:
                 continue
             # Parse as Tag
             elif terms[index][0].__eq__('@'):
-                self.parseTag(terms[index])
+                self.parseTag(terms[index], term_dict)
                 index += 1
                 continue
             # Parse as HashTag
@@ -87,27 +90,28 @@ class Parse:
 
     def parseNumber(self, number, nextTerm, term_dict):
         nextTermWasUsed = False
-        splited = re.split('[./]', number) #45.50$
+        splited = re.split('[./]', number)  # 45.50$
         allNumeric = splited[0].isnumeric() and (not len(splited) > 1 or splited[1].isnumeric())
         TMB = 'K' if (allNumeric and (3 < len(splited[0]) < 7 or nextTerm is 'Thousand')) else \
             'M' if (allNumeric and 6 < len(splited[0]) < 10 or nextTerm is 'Million') else \
-            'B' if (allNumeric and len(splited[0]) > 9 or nextTerm is 'Billion') else \
-            '%' if (nextTerm is 'percent' or nextTerm is 'percentage'
-                    or ((splited[0][-1] is '%') or (len(splited) > 1 and splited[1][-1] is '%'))) else \
-            (' ' + nextTerm) if self.checkFraction(nextTerm) else \
-            '$' if (splited[0][-1] is '$' or (len(splited) > 1 and splited[1][-1] is '$')
-                or nextTerm is 'dollars' or nextTerm is 'bucks') else ''
+                'B' if (allNumeric and len(splited[0]) > 9 or nextTerm is 'Billion') else \
+                    '%' if (nextTerm is 'percent' or nextTerm is 'percentage'
+                            or ((splited[0][-1] is '%') or (len(splited) > 1 and splited[1][-1] is '%'))) else \
+                        (' ' + nextTerm) if self.checkFraction(nextTerm) else \
+                            '$' if (splited[0][-1] is '$' or (len(splited) > 1 and splited[1][-1] is '$')
+                                    or nextTerm is 'dollars' or nextTerm is 'bucks') else ''
         KMB = 1 if ((not allNumeric) or len(splited[0]) < 4) else 1000 if allNumeric and 3 < len(splited[0]) < 7 else \
             1000000 if allNumeric and 6 < len(splited[0]) < 10 else 1000000000
         if splited[0][-1] is '%' or splited[0][-1] is '$':
             splited.append(splited[0][-1])
             splited[0] = splited[0][:-1]
-        Percent_Dollar = True if (len(splited) > 1 and splited[1][-1]) is '%' or (len(splited) > 1 and splited[1][-1]) is '$' else False
+        Percent_Dollar = True if (len(splited) > 1 and splited[1][-1]) is '%' or (
+                    len(splited) > 1 and splited[1][-1]) is '$' else False
         if nextTerm is 'Thousand' or nextTerm is 'Million' or nextTerm is 'Billion' or TMB is '' or TMB is '%' or \
                 TMB is '$' or self.checkFraction(nextTerm):
             Remainder = 0 if (len(splited) is 1 or splited[1] is '%' or splited[1] is '$') else \
                 float(splited[1][:-1][:3]) / min(1000, math.pow(10, len(splited[1][:-1]))) if Percent_Dollar else \
-                float(splited[1][:3]) / math.pow(10, len(splited[1]))
+                    float(splited[1][:3]) / math.pow(10, len(splited[1]))
             number = str((splited[0])) + (("{:.4f}".format(Remainder)[:-1])[1:] if not Remainder == 0 else "") + TMB
             print(number)
             nextTermWasUsed = True
@@ -162,19 +166,27 @@ class Parse:
         """
         tweet_id = doc_as_list[0]  # This tweet ID.
         tweet_date = doc_as_list[1]  # This tweet Date.
-        full_text = doc_as_list[2]  # Tweet's full text. If it's a re-tweet, start with 'RT @username_being_re-tweeted:' and the the 'pure' text.
-        url = doc_as_list[3]  # If tweet contains urls, this list contains them. If user re-tweeted from outside source, it's url should be here.
+        full_text = doc_as_list[
+            2]  # Tweet's full text. If it's a re-tweet, start with 'RT @username_being_re-tweeted:' and the the 'pure' text.
+        url = doc_as_list[
+            3]  # If tweet contains urls, this list contains them. If user re-tweeted from outside source, it's url should be here.
         retweet_text = doc_as_list[4]  # If this tweet is a re-tweet, this is the originals 'pure' text.
         retweet_url = doc_as_list[5]  # If this tweet is a re-tweet, this is the original's address (url).
-        quote_text = doc_as_list[6]  # If this is re-tweet, and the original tweet is a re-tweet, this is the original's tweet full text.
-        quote_url = doc_as_list[7]  # If this is re-tweet, and the original tweet is a re-tweet, this is the original's address (url).
+        quote_text = doc_as_list[
+            6]  # If this is re-tweet, and the original tweet is a re-tweet, this is the original's tweet full text.
+        quote_url = doc_as_list[
+            7]  # If this is re-tweet, and the original tweet is a re-tweet, this is the original's address (url).
         term_dict = {}  # Number of appearances of term per document.
-
-        self.parseURL('"https://t.co/efsdr":"https://www.foxnews.com/politics/pelosi-backlash-planning-fancy-dinner-democrats"', term_dict)
-        #check = self.parse_sentence("100%", term_dict)
-        if len(url) != 0:
+        print (len(words.words()))
+        start = time.time()
+        if "abstract" in words.words():
+            print ("True")
+        print(time.time()-start)
+        # self.parseURL('"https://t.co/efsdr":"https://www.foxnews.com/politics/pelosi-backlash-planning-fancy-dinner-democrats"',term_dict)
+        # check = self.parse_sentence("100%", term_dict)
+        if url != '[]':
             self.parseURL(url, term_dict)
-        if len(retweet_url) != 0:
+        if retweet_url != None:
             self.parseURL(retweet_url, term_dict)
         tokenized_text = self.parse_sentence(full_text, term_dict)  # All tokens in document
 

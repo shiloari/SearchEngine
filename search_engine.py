@@ -36,7 +36,7 @@ def run_engine():
     for idx, document in enumerate(documents_list):
         # parse the document
         # print("after")
-        parsed_document = p.parse_doc(document)
+        parsed_document = p.parse_doc(document)  # {"donald":-1, "first":1}
         number_of_documents += 1
         # print(idx)
         # index the document data
