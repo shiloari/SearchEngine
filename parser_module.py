@@ -147,7 +147,6 @@ class Parse:
             return index
 
         self.SaveCapital(terms[index], term_dict)
-
         recursiveText = terms[index]
         if text != '':
             recursiveText = text + ' ' + terms[index]
