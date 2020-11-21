@@ -220,9 +220,11 @@ class Parse:
         retweet_quoted_text = doc_as_list[11]
         retweet_quoted_urls = doc_as_list[12]
         retweet_quoted_url_indices = doc_as_list[13]
-
+        print(tweet_id)
+        if tweet_id == "1280921204594036737":
+            print("א")
         term_dict = {}  # Number of appearances of term per document.
-        if url != '[]':
+        if url != '{}':
             self.parseURL(url, term_dict)
         if retweet_url != None:
             self.parseURL(retweet_url, term_dict)
