@@ -1,4 +1,7 @@
 import time
+import unicodedata
+
+from numpy import unicode
 
 from reader import ReadFile
 from configuration import ConfigClass
@@ -20,19 +23,29 @@ def run_engine(corpus_path, output_path, stemming):
     p = Parse()
     indexer = Indexer(output_path)
     globList = []
-
-
+    counter = 0
     for path in Path(corpus_path).rglob('*.parquet'):
         # print("New Document")
         print("start parse")
         start = time.time()
+        start1 = time.time()
+        counter2=1
         for idx, document in enumerate(r.read_file(file_name=path)):
-            # parse the document
-            parsed_document = p.parse_doc(document)
-            number_of_documents += 1
-            # index the document data
-            indexer.add_new_doc(parsed_document)
-        print("Time to parse: " + time.time() - start)
+            if counter2 > 80000:
+                # parse the document
+                parsed_document = p.parse_doc(document)
+                number_of_documents += 1
+                # index the document data
+                indexer.add_new_doc(parsed_document)
+               # print("Time to parse: " + str(time.time() - start1))
+               # print(counter)
+                if counter == 9999:
+                    print("Time to parse: " + str((time.time()- start)/10000))
+                    start = time.time()
+                    counter = -1
+                counter += 1
+            counter2 +=1
+        print("Time to parse: " + str(time.time() - start1))
 
     """
    # documents_list = r.read_file(file_name='./Data/covid19_07-08.snappy.parquet')

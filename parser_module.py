@@ -4,6 +4,9 @@ import unicodedata
 
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
+from numpy import unicode
+from numpy.compat import basestring
+
 from document import Document
 import re
 import math
@@ -36,20 +39,23 @@ class Parse:
         :param text:
         :return:
         """
+
         index = 0
         delimiters = "[ \n]"
         terms = re.split(delimiters, text)
+        #text_tokens = word_tokenize(terms)
+        #terms = [w.lower() for w in text_tokens if w not in self.stop_words]
         while index < len(terms):
             # Parse expression with dashes
-            if '-' in terms[index]:
-                splitedByDash = re.split("[-]", terms[index])
-                for word in splitedByDash:
-                    lower = word.lower()
-                    if lower in words.words():
-                        self.SaveTerm(lower, term_dict)
-                if terms[index][0].islower():
-                    self.SaveTerm(terms[index], term_dict)
-            # Found URL in text - already parsed, continue
+            # if '-' in terms[index]:
+            #     splitedByDash = re.split("[-]", terms[index])
+            #     for word in splitedByDash:
+            #         lower = word.lower()
+            #         if lower in words.words():
+            #             self.SaveTerm(lower, term_dict)
+            #     if terms[index][0].islower():
+            #         self.SaveTerm(terms[index], term_dict)
+            # # Found URL in text - already parsed, continue
             if terms[index].__eq__('') or terms[index][:13].__eq__("https://t.co/"):
                 index += 1
                 continue
@@ -134,6 +140,7 @@ class Parse:
                 or nextTerm == 'dollar' or False
 
     def parseNumber(self, number, nextTerm, term_dict):
+
         if nextTerm is not None:
             l_nextTerm = nextTerm.lower()
             l_nextTerm = l_nextTerm[:-1] if l_nextTerm[-1] is 's' else l_nextTerm
@@ -155,6 +162,15 @@ class Parse:
         Divisor = self.SetDivisor(splited[0])  # Set the divisor if needed (1/1,000/100,000/1,000,000)
         Remainder = self.SetRemainder(splited,sizeSymbol) # Set the remainder as string
         valRemainder = float(Remainder) if float(Remainder) != 0 else 0 # Get remainder's numeric value
+        try:
+            int(splited[0])
+        except:
+            if len(splited[0])>1:
+                number = str(float(splited[0][:-1]) + unicodedata.numeric(splited[0][-1]))
+            else:
+                number = str(unicodedata.numeric(splited[0]))
+            self.SaveTerm(number,term_dict)
+            return nextTermWasUsed
         number = str(int(int(splited[0])/Divisor)+valRemainder)+sizeSymbol+valueSymbol # Connect all as string
         self.SaveTerm(number, term_dict)
         return nextTermWasUsed
@@ -183,6 +199,7 @@ class Parse:
 
     def parseCapitalLetterWord(self, text, terms, index, term_dict):
         if index >= len(terms) or len(terms[index]) == 0 or not terms[index][0].isalpha() or terms[index][0].islower():
+            index += 1                                               ###################################### change 22:12
             return index
 
         self.SaveCapital(terms[index], term_dict)
@@ -204,8 +221,12 @@ class Parse:
         upperText = term.upper()
         self.SaveTerm(upperText, term_dict)
 
-    def SaveTerm(self, term, term_dict):
-        term = term.replace('?', '').replace('.', '').replace('!', '')
+    def SaveTerm(self, term, term_dict): #add boolean if last word in sen.
+        term = term.replace('?', '').replace('!', '')
+        if term == '':
+            return
+        if term[-1] == '.':
+            term = term.replace('.', '')
         if term in term_dict:
             term_dict[term] += 1
         else:
@@ -215,7 +236,7 @@ class Parse:
         parsed = re.split('"', text)
         if len(parsed) > 3:
             to_be_parsed = parsed[3]
-            splited = re.split("[:/?=&+]", to_be_parsed)
+            splited = re.split("[:/?=&+-]", to_be_parsed)
             self.SaveTerm(splited[0], term_dict)
             if splited[3][:3] == 'www':
                 self.SaveTerm(splited[3][:3], term_dict)
@@ -263,12 +284,15 @@ class Parse:
         retweet_quoted_text = doc_as_list[11]
         retweet_quoted_urls = doc_as_list[12]
         retweet_quoted_url_indices = doc_as_list[13]
-
+        # print(tweet_id)
+        if tweet_id == '1281001080269094912':
+             print('asd')
         term_dict = {}  # Number of appearances of term per document.
         if url != '{}':
             self.parseURL(url, term_dict)
         if retweet_url != None:
             self.parseURL(retweet_url, term_dict)
+
         tokenized_text = self.parse_sentence(full_text, term_dict)  # All tokens in document
 
         doc_length = len(tokenized_text)  # after text operations.
