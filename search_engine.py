@@ -6,7 +6,7 @@ from searcher import Searcher
 import utils
 import glob
 from pathlib import Path
-def run_engine():
+def run_engine(corpus_path, output_path, stemming):
     """
 
     :return:
@@ -14,14 +14,14 @@ def run_engine():
     number_of_documents = 0
 
     config = ConfigClass()
-    r = ReadFile(corpus_path=config.get__corpusPath())
+    r = ReadFile(corpus_path=corpus_path)
     p = Parse()
-    indexer = Indexer(config)
+    indexer = Indexer(output_path)
     globList = []
 
-    """
-    for path in Path('./Data').rglob('*.parquet'):
-        print("again")
+
+    for path in Path(corpus_path).rglob('*.parquet'):
+        print("New Document")
         for idx, document in enumerate(r.read_file(file_name=path)):
             # parse the document
             #print("after")
@@ -43,6 +43,7 @@ def run_engine():
         indexer.add_new_doc(parsed_document)
 
     # Iterate over every document in the file
+    """
 
     print('Finished parsing and indexing. Starting to export files')
 
@@ -65,10 +66,10 @@ def search_and_rank_query(query, inverted_index, k):
     return searcher.ranker.retrieve_top_k(ranked_docs, k)
 
 
-def main():
-    run_engine()
+def main(corpus_path, output_path, stemming, queries, num_docs_to_retrieve):
+    run_engine(corpus_path, output_path, stemming)
     query = input("Please enter a query: ")
     k = int(input("Please enter number of docs to retrieve: "))
     inverted_index = load_index()
-    for doc_tuple in search_and_rank_query(query, inverted_index, k):
+    for doc_tuple in search_and_rank_query(query, inverted_index, num_docs_to_retrieve):
         print('tweet id: {}, score (unique common words with query): {}'.format(doc_tuple[0], doc_tuple[1]))
