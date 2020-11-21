@@ -60,9 +60,7 @@ class Parse:
             # Parse as number
             ModifiedNumber = self.CheckIfNumber(terms[index])
             if ModifiedNumber is not None:
-                NextTerm = None if (index == len(terms) - 1) else terms[index + 1]
-                if (ModifiedNumber == ''):
-                    print("here")
+                NextTerm = None if (index == len(terms) - 1) or terms[index+1] == '' else terms[index + 1]
                 if self.parseNumber(ModifiedNumber, NextTerm, term_dict):  # If function returns "True" - next term was related.
                     index += 2
                 else:
@@ -93,45 +91,85 @@ class Parse:
         values = fraction.split('/')
         return len(values) == 2 and all(i.isdigit() for i in values)
 
-    def SetSymbol(self, allNumeric, nextTerm, splited):
-        Symbol = 'K' if (allNumeric and (3 < len(splited[0]) < 7 or nextTerm is 'Thousand')) else \
-            'M' if (allNumeric and 6 < len(splited[0]) < 10 or nextTerm is 'Million') else \
-                'B' if (allNumeric and len(splited[0]) > 9 or nextTerm is 'Billion') else \
-                    '%' if (nextTerm is 'percent' or nextTerm is 'percentage'
-                            or ((len(splited[0]) > 0 and splited[0][-1] is '%') or (len(splited) > 1 and len(splited[1]) > 0 and splited[1][-1] is '%'))) else \
-                        (' ' + nextTerm) if self.checkFraction(nextTerm) else \
-                            '$' if (len(splited[0]) > 0 and splited[0][-1] is '$' or (len(splited) > 1 and len(splited[1]) > 0 and splited[1][-1] is '$')
-                                    or nextTerm is 'dollars' or nextTerm is 'bucks') else ''
+    def SetSizeSymbol(self, nextTerm, number):
+        Symbol = 'K' if (3 < len(number) < 7 or nextTerm == 'thousand') else \
+            'M' if (6 < len(number) < 10 or nextTerm == 'million') else \
+            'B' if (len(number) > 9 or nextTerm == 'billion') \
+            else ''
         return Symbol
 
-    def SetDivisor(self, allNumeric, splited):
-        Divisor = 1 if ((not allNumeric) or len(splited[0]) < 4) else 1000 if allNumeric and 3 < len(
-            splited[0]) < 7 else \
-            1000000 if allNumeric and 6 < len(splited[0]) < 10 else 1000000000
+    def SetValueSymbol(self, nextTerm, splited):
+        HasSecondElement = len(splited) > 1
+        SecondElementNonEmpty = HasSecondElement and len(splited[1]) > 0
+        valueSymbol = '%' if splited[0][0] == '%' or splited[0][-1] == '%' or (SecondElementNonEmpty and splited[1][-1] == '%') \
+                             or nextTerm == 'percent' or nextTerm == 'percentage' \
+            else '$' if splited[0][0] == '$' or splited[0][-1] == '$' or (SecondElementNonEmpty and splited[1][-1] == '$') \
+                        or nextTerm == 'buck' or nextTerm == 'dollar' \
+            else ''
+        return valueSymbol
+
+    def SetDivisor(self, number):
+        Divisor = 1 if (len(number) < 4) else 1000 if  3 < len(number) < 7 else \
+            1000000 if 6 < len(number) < 10 else 1000000000
         return Divisor
 
-    def SetRemainder(self, splited, Percent_Dollar):
-        Remainder = 0 if (len(splited) is 1 or splited[1] is '%' or splited[1] is '$') else \
-            float(splited[1][:-1][:3]) / min(1000, math.pow(10, len(splited[1][:-1]))) if Percent_Dollar else \
-                float(splited[1][:3]) / math.pow(10, len(splited[1]))
+    def SetRemainder(self, splited, sizeSymbol):
+        Remainder = '0'
+        # In case of large number
+        if sizeSymbol != '' and len(splited[0]) > 3:
+            Module = 3 if len(splited[0]) % 3 == 0 else len(splited[0])%3
+            Remainder = '0.' + splited[0][Module:Module + 3]
+            return Remainder
+        numOfDigits = 0
+        if len(splited) > 1:
+            numOfDigits = min(3, len(splited[1]))
+        # Has digits after floating point.
+        if numOfDigits != 0:
+            Remainder = '0.' + splited[1][:numOfDigits+1]
         return Remainder
 
     def SetNextTermWasUsed(self, nextTerm):
-        return nextTerm is 'Thousand' or nextTerm is 'Million' or nextTerm is 'Billion' \
-               or nextTerm is 'percent' or nextTerm is 'percentage' or nextTerm is 'bucks' \
-               or nextTerm is 'dollars'
+        return nextTerm == 'thousand' or nextTerm == 'million' or nextTerm == 'billion' \
+                or nextTerm == 'percent' or nextTerm == 'percentage' or nextTerm == 'buck' \
+                or nextTerm == 'dollar' or False
 
     def parseNumber(self, number, nextTerm, term_dict):
-        nextTermWasUsed = self.SetNextTermWasUsed(nextTerm)
+        if nextTerm is not None:
+            l_nextTerm = nextTerm.lower()
+            l_nextTerm = l_nextTerm[:-1] if l_nextTerm[-1] is 's' else l_nextTerm
+            nextTermWasUsed = self.SetNextTermWasUsed(l_nextTerm)
+        else:
+            nextTermWasUsed = False
+            l_nextTerm = None
         splited = re.split('[./]', number)
-        allNumeric = splited[0].isnumeric() and (not len(splited) > 1 or splited[1].isnumeric())
-        Symbol = self.SetSymbol(allNumeric, nextTerm, splited)
-        Divisor = self.SetDivisor(allNumeric, splited)
-        if len(splited[0]) > 0 and (splited[0][-1] is '%' or splited[0][-1] is '$'):
+        if splited[0] == '': # In case of empty element in first index.
+            splited[0] = '0'
+        # Set value symbol: $ or %
+        valueSymbol = self.SetValueSymbol(l_nextTerm,splited)
+        # Clear value symbol from string
+        if valueSymbol != '':
+            splited[0] = splited[0].replace(valueSymbol, '')
+            if len(splited) > 1:
+                splited[1] = splited[1].replace(valueSymbol, '')
+        sizeSymbol = self.SetSizeSymbol(l_nextTerm, splited[0])  # Set the symbol if needed (K/M/B)
+        Divisor = self.SetDivisor(splited[0])  # Set the divisor if needed (1/1,000/100,000/1,000,000)
+        Remainder = self.SetRemainder(splited,sizeSymbol) # Set the remainder as string
+        valRemainder = float(Remainder) if float(Remainder) != 0 else 0 # Get remainder's numeric value
+        number = str(int(int(splited[0])/Divisor)+valRemainder)+sizeSymbol+valueSymbol # Connect all as string
+        self.SaveTerm(number, term_dict)
+        return nextTermWasUsed
+
+        """
+        nextTermWasUsed = self.SetNextTermWasUsed(nextTerm) # Check if next term is relevant to parsing.
+        splited = re.split('[./]', number)
+        allNumeric = splited[0].isnumeric() and (not len(splited) > 1 or splited[1].isnumeric()) #Allnumeric - all elements in splited are numeric.
+        Symbol = self.SetSymbol(allNumeric, nextTerm, splited) # Set the symbol if needed (K/M/B/%/$)
+        Divisor = self.SetDivisor(allNumeric, splited) # Set the divisor if needed (1/1,000/100,000/1,000,000)
+        if len(splited[0]) > 0 and (splited[0][-1] is '%' or splited[0][-1] is '$'): # floating point & symbol correction.
             splited.append(splited[0][-1])
             splited[0] = splited[0][:-1]
         Percent_Dollar = True if (len(splited) > 1 and len(splited[1]) > 0 and splited[1][-1]) is '%' or (
-                len(splited) > 1 and len(splited[1]) > 0 and splited[1][-1]) is '$' else False
+                len(splited) > 1 and len(splited[1]) > 0 and splited[1][-1]) is '$' else False 
         if nextTermWasUsed or Symbol is '%' or Symbol is '$' or self.checkFraction(nextTerm):
             Remainder = self.SetRemainder(splited, Percent_Dollar)
             number = str((splited[0])) + (("{:.4f}".format(Remainder)[:-1])[1:] if not Remainder == 0 else "") + Symbol
@@ -141,6 +179,7 @@ class Parse:
             number = "{:.4f}".format(fSplited)[:-1] + Symbol
         self.SaveTerm(number, term_dict)
         return nextTermWasUsed
+    """
 
     def parseCapitalLetterWord(self, text, terms, index, term_dict):
         if index >= len(terms) or len(terms[index]) == 0 or not terms[index][0].isalpha() or terms[index][0].islower():
@@ -207,21 +246,24 @@ class Parse:
         """
         tweet_id = doc_as_list[0]  # This tweet ID.
         tweet_date = doc_as_list[1]  # This tweet Date.
-        full_text = doc_as_list[2]  # Tweet's full text. If it's a re-tweet, start with 'RT @username_being_re-tweeted:' and the the 'pure' text.
-        url = doc_as_list[3]  # If tweet contains urls, this list contains them. If user re-tweeted from outside source, it's url should be here.
+        full_text = doc_as_list[
+            2]  # Tweet's full text. If it's a re-tweet, start with 'RT @username_being_re-tweeted:' and the the 'pure' text.
+        url = doc_as_list[
+            3]  # If tweet contains urls, this list contains them. If user re-tweeted from outside source, it's url should be here.
         url_indices = doc_as_list[4]  # if tweet contains urls, this list contains their urls.
         retweet_text = doc_as_list[5]  # If this tweet is a re-tweet, this is the originals 'pure' text.
         retweet_url = doc_as_list[6]  # If this tweet is a re-tweet, this is the original's address (url).
         retweet_url_indices = doc_as_list[7]  # re-tweet indices
-        quote_text = doc_as_list[8]  # If this is re-tweet, and the original tweet is a re-tweet, this is the original's tweet full text.
-        quote_url = doc_as_list[9]  # If this is re-tweet, and the original tweet is a re-tweet, this is the original's address (url).
-        quote_url_indices = doc_as_list[10]  # If this is re-tweet, and the original tweet is a re-tweet, this is the original's address (url) indices.
+        quote_text = doc_as_list[
+            8]  # If this is re-tweet, and the original tweet is a re-tweet, this is the original's tweet full text.
+        quote_url = doc_as_list[
+            9]  # If this is re-tweet, and the original tweet is a re-tweet, this is the original's address (url).
+        quote_url_indices = doc_as_list[
+            10]  # If this is re-tweet, and the original tweet is a re-tweet, this is the original's address (url) indices.
         retweet_quoted_text = doc_as_list[11]
         retweet_quoted_urls = doc_as_list[12]
         retweet_quoted_url_indices = doc_as_list[13]
-        print(tweet_id)
-        if tweet_id == "1280921204594036737":
-            print("א")
+
         term_dict = {}  # Number of appearances of term per document.
         if url != '{}':
             self.parseURL(url, term_dict)
@@ -240,4 +282,3 @@ class Parse:
         document = Document(tweet_id, tweet_date, full_text, url, retweet_text, retweet_url, quote_text,
                             quote_url, term_dict, doc_length)
         return document
-

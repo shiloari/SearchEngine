@@ -1,3 +1,5 @@
+import time
+
 from reader import ReadFile
 from configuration import ConfigClass
 from parser_module import Parse
@@ -21,15 +23,17 @@ def run_engine(corpus_path, output_path, stemming):
 
 
     for path in Path(corpus_path).rglob('*.parquet'):
-        print("New Document")
+        # print("New Document")
+        print("start parse")
+        start = time.time()
         for idx, document in enumerate(r.read_file(file_name=path)):
             # parse the document
-            #print("after")
             parsed_document = p.parse_doc(document)
             number_of_documents += 1
-            #print(idx)
             # index the document data
             indexer.add_new_doc(parsed_document)
+        print("Time to parse: " + time.time() - start)
+
     """
    # documents_list = r.read_file(file_name='./Data/covid19_07-08.snappy.parquet')
     documents_list = r.read_file(file_name='sample3.parquet')
