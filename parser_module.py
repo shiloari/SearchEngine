@@ -123,6 +123,8 @@ class Parse:
         Remainder = '0'
         # In case of large number
         if sizeSymbol != '' and len(splited[0]) > 3:
+            if splited[0][-1] == '%':
+                print("stop")
             Module = 3 if len(splited[0]) % 3 == 0 else len(splited[0])%3
             Remainder = '0.' + splited[0][Module:Module + 3]
             return Remainder
@@ -140,7 +142,7 @@ class Parse:
                 or nextTerm == 'dollar' or False
 
     def parseNumber(self, number, nextTerm, term_dict):
-
+        print("begin parse number: ", number)
         if nextTerm is not None:
             l_nextTerm = nextTerm.lower()
             l_nextTerm = l_nextTerm[:-1] if l_nextTerm[-1] is 's' else l_nextTerm
@@ -149,13 +151,15 @@ class Parse:
             nextTermWasUsed = False
             l_nextTerm = None
         splited = re.split('[./]', number)
-        if splited[0] == '': # In case of empty element in first index.
-            splited[0] = '0'
         # Set value symbol: $ or %
+        if splited[0] == '':  # In case of empty element in first index.
+            splited[0] = '0'
         valueSymbol = self.SetValueSymbol(l_nextTerm,splited)
         # Clear value symbol from string
         if valueSymbol != '':
             splited[0] = splited[0].replace(valueSymbol, '')
+            if splited[0] == '':  # In case of empty element after replacement.
+                splited[0] = '0'
             if len(splited) > 1:
                 splited[1] = splited[1].replace(valueSymbol, '')
         sizeSymbol = self.SetSizeSymbol(l_nextTerm, splited[0])  # Set the symbol if needed (K/M/B)
@@ -165,12 +169,23 @@ class Parse:
         try:
             int(splited[0])
         except:
-            if len(splited[0])>1:
-                number = str(float(splited[0][:-1]) + unicodedata.numeric(splited[0][-1]))
-            else:
-                number = str(unicodedata.numeric(splited[0]))
-            self.SaveTerm(number,term_dict)
-            return nextTermWasUsed
+            # if len(splited[0]) > 1:
+            #     print("len splited[0]: ", len(splited[0]))
+            #     print(isinstance(splited[0], unicode))
+                try:
+                    corrected_number = str(float(splited[0][:-1]) + unicodedata.numeric(splited[0][-1]))
+                except:
+                    try:
+                         corrected_number = str(unicodedata.numeric(splited[0]))
+                    except:
+                        self.SaveTerm(splited[0], term_dict)
+                        return nextTermWasUsed
+            # else:
+            #     number = str(unicodedata.numeric(splited[0]))
+                print("Before recursive call")
+                print(corrected_number)
+                return self.parseNumber(corrected_number, nextTerm, term_dict)
+        print("splited[0]: ", splited[0])
         number = str(int(int(splited[0])/Divisor)+valRemainder)+sizeSymbol+valueSymbol # Connect all as string
         self.SaveTerm(number, term_dict)
         return nextTermWasUsed
@@ -244,7 +259,7 @@ class Parse:
             else:
                 self.SaveTerm(splited[3], term_dict)
             for term in splited[4:]:
-                self.parse_sentence(term, term_dict, False)
+                self.SaveTerm(term, term_dict)
 
     def parseHashTag(self, term, term_dict):
         splitedByUnderScore = re.split('[_]', term)
@@ -284,9 +299,9 @@ class Parse:
         retweet_quoted_text = doc_as_list[11]
         retweet_quoted_urls = doc_as_list[12]
         retweet_quoted_url_indices = doc_as_list[13]
-        # print(tweet_id)
-        if tweet_id == '1281001080269094912':
-             print('asd')
+        #print(tweet_id)
+        if tweet_id == '1281023608681377793':
+            print('asd')
         term_dict = {}  # Number of appearances of term per document.
         if url != '{}':
             self.parseURL(url, term_dict)
