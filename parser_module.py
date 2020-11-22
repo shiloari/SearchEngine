@@ -60,7 +60,7 @@ class Parse:
                 index += 1
                 continue
             # Parse as expression
-            if terms[index][0].isupper():
+            if terms[index][0].isupper() and terms[index][0].isalpha():
                 index = self.parseCapitalLetterWord('', terms, index, term_dict)
                 continue
             # Parse as number
@@ -141,19 +141,26 @@ class Parse:
                 or nextTerm == 'percent' or nextTerm == 'percentage' or nextTerm == 'buck' \
                 or nextTerm == 'dollar' or False
 
-    def checkForUnicode(self,number, term_dict):
+    def checkForUnicode(self,number,number1, term_dict):
         for digit in number:
-            if int(ord(digit)) < 48 or int(ord(digit)) > 57: #Not a regular digit.
+            try:
+                digit = str(int(digit))
+            except:
+                pass
+            if not 47 < int(ord(digit)) < 58 : #Not a regular digit.
                 try:
-                    corrected_number = str(float(number[:-1]) + unicodedata.numeric(number[-1]))
+                    splited =re.split("[.]",str(int(number[:-1])+float(unicodedata.numeric(number[-1]))))
+                    corrected_number = splited[0]
+                    remainder=splited[1]
                 except:
                     try:
-                        corrected_number = str(unicodedata.numeric(number))
+                        corrected_number = int(unicodedata.numeric(number))
+                        remainder = number1
                     except:
                         self.SaveTerm(number, term_dict)
-                        return "Saved"
-                return corrected_number
-        return None
+                        return number,number1, True
+                return str(corrected_number), str(remainder), False
+        return number,number1, False
 
     def parseNumber(self, number, nextTerm, term_dict):
         #print("begin parse number: ", number)
@@ -176,7 +183,10 @@ class Parse:
                 splited[0] = '0'
             if len(splited) > 1:
                 splited[1] = splited[1].replace(valueSymbol, '')
-        if self.checkForUnicode(splited[0], term_dict) == "Saved":
+        if len(splited) == 1:
+            splited.append('')
+        splited[0],splited[1], Saved =  self.checkForUnicode(splited[0],splited[1], term_dict)
+        if Saved:
             return nextTermWasUsed
         sizeSymbol = self.SetSizeSymbol(l_nextTerm, splited[0])  # Set the symbol if needed (K/M/B)
         Divisor = self.SetDivisor(splited[0])  # Set the divisor if needed (1/1,000/100,000/1,000,000)
@@ -230,7 +240,6 @@ class Parse:
 
     def parseCapitalLetterWord(self, text, terms, index, term_dict):
         if index >= len(terms) or len(terms[index]) == 0 or not terms[index][0].isalpha() or terms[index][0].islower():
-            index += 1                                               ###################################### change 22:12
             return index
 
         self.SaveCapital(terms[index], term_dict)
@@ -316,7 +325,7 @@ class Parse:
         retweet_quoted_urls = doc_as_list[12]
         retweet_quoted_url_indices = doc_as_list[13]
         #print(tweet_id)
-        if tweet_id == '1281129753504776193':
+        if tweet_id == '1284330569577291777':
             print('asd')
         term_dict = {}  # Number of appearances of term per document.
         if url != '{}':

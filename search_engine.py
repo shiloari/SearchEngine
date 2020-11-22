@@ -32,7 +32,7 @@ def run_engine(corpus_path, output_path, stemming):
         start = time.time()
         start1 = time.time()
         for idx, document in enumerate(r.read_file(file_name=path)):
-            if counter2 >= 1 and counter3 >= 310000:
+            if counter2 >= 9 and counter3 >= 50000:
                 # parse the document
                 parsed_document = p.parse_doc(document)
                 number_of_documents += 1
