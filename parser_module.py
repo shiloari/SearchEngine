@@ -162,6 +162,10 @@ class Parse:
                 splited[0] = '0'
             if len(splited) > 1:
                 splited[1] = splited[1].replace(valueSymbol, '')
+        if splited[0] == '10¹¹':
+            #print(ord(splited[0]))
+            for a in splited[0]:
+                print(ord(a))
         sizeSymbol = self.SetSizeSymbol(l_nextTerm, splited[0])  # Set the symbol if needed (K/M/B)
         Divisor = self.SetDivisor(splited[0])  # Set the divisor if needed (1/1,000/100,000/1,000,000)
         Remainder = self.SetRemainder(splited,sizeSymbol) # Set the remainder as string
