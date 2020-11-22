@@ -141,6 +141,20 @@ class Parse:
                 or nextTerm == 'percent' or nextTerm == 'percentage' or nextTerm == 'buck' \
                 or nextTerm == 'dollar' or False
 
+    def checkForUnicode(self,number, term_dict):
+        for digit in number:
+            if int(ord(digit)) < 48 or int(ord(digit)) > 57: #Not a regular digit.
+                try:
+                    corrected_number = str(float(number[:-1]) + unicodedata.numeric(number[-1]))
+                except:
+                    try:
+                        corrected_number = str(unicodedata.numeric(number))
+                    except:
+                        self.SaveTerm(number, term_dict)
+                        return "Saved"
+                return corrected_number
+        return None
+
     def parseNumber(self, number, nextTerm, term_dict):
         #print("begin parse number: ", number)
         if nextTerm is not None:
@@ -162,10 +176,8 @@ class Parse:
                 splited[0] = '0'
             if len(splited) > 1:
                 splited[1] = splited[1].replace(valueSymbol, '')
-        if splited[0] == '10¹¹':
-            #print(ord(splited[0]))
-            for a in splited[0]:
-                print(ord(a))
+        if self.checkForUnicode(splited[0], term_dict) == "Saved":
+            return nextTermWasUsed
         sizeSymbol = self.SetSizeSymbol(l_nextTerm, splited[0])  # Set the symbol if needed (K/M/B)
         Divisor = self.SetDivisor(splited[0])  # Set the divisor if needed (1/1,000/100,000/1,000,000)
         Remainder = self.SetRemainder(splited,sizeSymbol) # Set the remainder as string
