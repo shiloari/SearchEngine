@@ -1,6 +1,7 @@
+import os
 import time
 import unicodedata
-
+import matplotlib.pyplot as plt
 from numpy import unicode
 
 from reader import ReadFile
@@ -11,6 +12,15 @@ from searcher import Searcher
 import utils
 import glob
 from pathlib import Path
+
+
+def saveAsJSON(path, file_name, to_be_saved):
+    import json
+
+    with open(path+'/'+file_name+'.json', 'w') as file:
+        json.dump(to_be_saved, file)
+        file.close()
+
 def run_engine(corpus_path, output_path, stemming):
     """
 
@@ -23,53 +33,50 @@ def run_engine(corpus_path, output_path, stemming):
     p = Parse()
     indexer = Indexer(output_path)
     globList = []
-    counter = 0
-    counter2 = 0
-    counter3 = 0
+    start = time.time()
+
+    # folders = 0
+    # for _, dirnames, _ in os.walk(corpus_path):
+    #     # ^ this idiom means "we won't be using this value"
+    #     folders += len(dirnames)
+    # progressBar = ''
+    # for i in range(folders):
+    #     progressBar += ' '
+    # progressBar = '[' + progressBar + ']'
+    # print(progressBar, ' 0%')
     for path in Path(corpus_path).rglob('*.parquet'):
         # print("New Document")
-        print("start parse")
-        start = time.time()
+        print("start parse parquet")
         start1 = time.time()
+        sizeOfCorpus = 0
+        counter = 0
         for idx, document in enumerate(r.read_file(file_name=path)):
-            if counter2 >= 9 and counter3 >= 50000:
+                if sizeOfCorpus == 1:
+                    break
+                if counter > 9999:
+                    counter = 0
+                    print("parsed 10000 files")
+                # print(idx)
                 # parse the document
                 parsed_document = p.parse_doc(document)
                 number_of_documents += 1
                 # index the document data
                 indexer.add_new_doc(parsed_document)
-               # print("Time to parse: " + str(time.time() - start1))
-               # print(counter)
-                if counter == 9999:
-                    print("Time to parse: " + str((time.time()- start)/10000))
-                    start = time.time()
-                    counter = -1
                 counter += 1
-                #print(counter)
-            counter3 += 1
-        counter2 += 1
-        counter3 = 0
-        print("Time to parse: " + str(time.time() - start1))
+        print("Time to parse parquet: " + str(time.time() - start1))
+        sizeOfCorpus += 1
+        # progressBar = progressBar[:idx] + '\x1b[6;30;42m' + 'X' + '\x1b[0m]' + progressBar[idx:]
+        # print(progressBar, ' ',  float(counter/folders),' %', end='\r')
+    print("Total time to parse: " , time.time()-start)
 
-    """
-   # documents_list = r.read_file(file_name='./Data/covid19_07-08.snappy.parquet')
-    documents_list = r.read_file(file_name='sample3.parquet')
-    for idx, document in enumerate(documents_list):
-        # parse the document
-        # print("after")
-        parsed_document = p.parse_doc(document)  # {"donald":-1, "first":1}
-        number_of_documents += 1
-        # print(idx)
-        # index the document data
-        indexer.add_new_doc(parsed_document)
-
-    # Iterate over every document in the file
-    """
+    #### save as json
 
     print('Finished parsing and indexing. Starting to export files')
 
-    utils.save_obj(indexer.inverted_idx, "inverted_idx")
-    utils.save_obj(indexer.postingDict, "posting")
+    saveAsJSON(Path.absolute(), 'inverted_idx', indexer.inverted_idx)
+    saveAsJSON(Path.absolute(), 'posting' , indexer.postingDict)
+    # utils.save_obj(indexer.inverted_idx, "inverted_idx")
+    # utils.save_obj(indexer.postingDict, "posting")
 
 
 def load_index():

@@ -17,7 +17,10 @@ class Parse:
 
     def __init__(self):
         self.stop_words = stopwords.words('english')
-        self.CapitalTerms = {}
+        extra_stop_words = ['i\'ll', 'i\'d', 'i\'m', 'i\'ve']
+        self.stop_words = self.stop_words + extra_stop_words
+        self.FirstCharDict = {}
+        self.LenDict = {}
 
     def CheckIfNumber(self, term):
         ModifiedNumber = ""
@@ -32,6 +35,11 @@ class Parse:
             ModifiedNumber += digit
         return ModifiedNumber if numOfDigits > 0 else None
 
+    def cleanLastChar(self, term):
+        if term[-1] == '.' or term[-1] == ',' or term[-1] == ':' or term[-1] == ';' or term[-1] == ',':
+            return term.replace(term[-1], '')
+        return term
+
     ##Should recognize: Terms,Tags,Hashtags.
     def parse_sentence(self, text, term_dict, isRetweet=False):
         """
@@ -43,20 +51,28 @@ class Parse:
         index = 0
         delimiters = "[ \n]"
         terms = re.split(delimiters, text)
+        # Snip three dots (...) from end of unfinished sentence.
+        if len(terms[-1]) > 0 and terms[-1][-1] == '\u2026':
+            terms[-1] = terms[-1][:-1]
+        if terms[0] == 'RT':
+            index = 1
         #text_tokens = word_tokenize(terms)
         #terms = [w.lower() for w in text_tokens if w not in self.stop_words]
         while index < len(terms):
-            # Parse expression with dashes
-            # if '-' in terms[index]:
-            #     splitedByDash = re.split("[-]", terms[index])
-            #     for word in splitedByDash:
-            #         lower = word.lower()
-            #         if lower in words.words():
-            #             self.SaveTerm(lower, term_dict)
-            #     if terms[index][0].islower():
-            #         self.SaveTerm(terms[index], term_dict)
-            # # Found URL in text - already parsed, continue
+            # Check for the empty string or URL - shouldn't be parsed.
             if terms[index].__eq__('') or terms[index][:13].__eq__("https://t.co/"):
+                index += 1
+                continue
+            # If last char of term is not relevant than remove it.
+            terms[index] = self.cleanLastChar(terms[index])
+            # Handle \u cases                   #######SHOULD FIND GENERAL SOLUTION
+            if '\u2019' in terms[index]:
+                terms[index] = terms[index].replace('\u2019', "\'")
+            # Check for stop word - continue and don't add it.
+            if terms[index].lower() in self.stop_words:
+                index += 1
+                continue
+            if terms[index].__eq__(''):
                 index += 1
                 continue
             # Parse as expression
@@ -86,10 +102,10 @@ class Parse:
             self.SaveTerm(terms[index], term_dict)
             index += 1
 
-        text_tokens = word_tokenize(text)
-        text_tokens_without_stopwords = [w.lower() for w in text_tokens if w not in self.stop_words]
+        # text_tokens = word_tokenize(text)
+        # text_tokens_without_stopwords = [w.lower() for w in text_tokens if w not in self.stop_words]
         # self.parseURL(text, term_dict)
-        return text_tokens_without_stopwords
+        return term_dict.keys()
 
     def checkFraction(self, fraction):
         if fraction is None:
@@ -242,10 +258,11 @@ class Parse:
         if index >= len(terms) or len(terms[index]) == 0 or not terms[index][0].isalpha() or terms[index][0].islower():
             return index
 
+        terms[index] = self.cleanLastChar(terms[index])
         self.SaveCapital(terms[index], term_dict)
         recursiveText = terms[index]
         if text != '':
-            recursiveText = text + ' ' + terms[index]
+            recursiveText = text + ' ' + recursiveText
             self.SaveCapital(recursiveText, term_dict)
 
         # if index+1 < len(terms) and terms[index+1][0].isupper():
@@ -265,8 +282,8 @@ class Parse:
         term = term.replace('?', '').replace('!', '')
         if term == '':
             return
-        if term[-1] == '.':
-            term = term.replace('.', '')
+        if term == '' or term.lower() in self.stop_words:
+            return
         if term in term_dict:
             term_dict[term] += 1
         else:
@@ -305,28 +322,24 @@ class Parse:
         :param doc_as_list: list re-preseting the tweet.
         :return: Document object with corresponding fields.
         """
+
         tweet_id = doc_as_list[0]  # This tweet ID.
         tweet_date = doc_as_list[1]  # This tweet Date.
-        full_text = doc_as_list[
-            2]  # Tweet's full text. If it's a re-tweet, start with 'RT @username_being_re-tweeted:' and the the 'pure' text.
-        url = doc_as_list[
-            3]  # If tweet contains urls, this list contains them. If user re-tweeted from outside source, it's url should be here.
+        full_text = doc_as_list[2]  # Tweet's full text. If it's a re-tweet, start with 'RT @username_being_re-tweeted:' and the the 'pure' text.
+        url = doc_as_list[3]  # If tweet contains urls, this list contains them. If user re-tweeted from outside source, it's url should be here.
         url_indices = doc_as_list[4]  # if tweet contains urls, this list contains their urls.
         retweet_text = doc_as_list[5]  # If this tweet is a re-tweet, this is the originals 'pure' text.
         retweet_url = doc_as_list[6]  # If this tweet is a re-tweet, this is the original's address (url).
         retweet_url_indices = doc_as_list[7]  # re-tweet indices
-        quote_text = doc_as_list[
-            8]  # If this is re-tweet, and the original tweet is a re-tweet, this is the original's tweet full text.
-        quote_url = doc_as_list[
-            9]  # If this is re-tweet, and the original tweet is a re-tweet, this is the original's address (url).
-        quote_url_indices = doc_as_list[
-            10]  # If this is re-tweet, and the original tweet is a re-tweet, this is the original's address (url) indices.
+        quote_text = doc_as_list[8]  # If this is re-tweet, and the original tweet is a re-tweet, this is the original's tweet full text.
+        quote_url = doc_as_list[9]  # If this is re-tweet, and the original tweet is a re-tweet, this is the original's address (url).
+        quote_url_indices = doc_as_list[10]  # If this is re-tweet, and the original tweet is a re-tweet, this is the original's address (url) indices.
         retweet_quoted_text = doc_as_list[11]
         retweet_quoted_urls = doc_as_list[12]
         retweet_quoted_url_indices = doc_as_list[13]
         #print(tweet_id)
-        if tweet_id == '1284330569577291777':
-            print('asd')
+        # if tweet_id == '1280917894902284288':
+            # print('asd')
         term_dict = {}  # Number of appearances of term per document.
         if url != '{}':
             self.parseURL(url, term_dict)
