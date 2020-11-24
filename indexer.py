@@ -18,8 +18,8 @@ class Indexer:
         self.Locks = {}
 
     def flushAll(self):
-        keys = self.postingDictionary.keys()
-        self.checkFlushing(keys[0], True)
+       # keys = self.postingDictionary.keys()
+        self.checkFlushing(0, True)
 
     def updateJSON(self, term, document_id, filename):
         # Get json data from path
@@ -85,17 +85,20 @@ class Indexer:
         if FlushAll or len(self.postingDictionary[key]) > 15000:
             numOfFlushed = 40
             threads = []
+            i=key
             # Append all threads to list
             # print("Start time: ", time.time())
             for k in sorted(self.postingDictionary, key=lambda k: len(self.postingDictionary[k]), reverse=True):
                 if FlushAll or (numOfFlushed >= 0 and len(self.postingDictionary[k]) > 14000):
                     copyData = copy.deepcopy(self.postingDictionary[k])
                     t = Thread(target=self.Flush, args=(k, copyData, ''))
-                    self.postingDictionary[key] = {}
+                    self.postingDictionary[i] = {}
                     threads.append(t)
                     # print("start thread: ", key, ' ,', len(copyData))
                     t.start()
                     numOfFlushed -= 1
+                    if FlushAll:
+                        i +=1
                 else:
                     break
             # for thread in threads:

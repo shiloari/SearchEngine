@@ -1,7 +1,6 @@
 import os
 import time
 import unicodedata
-import matplotlib.pyplot as plt
 from numpy import unicode
 
 from reader import ReadFile
@@ -80,7 +79,10 @@ def run_engine(corpus_path, output_path, stemming):
         sizeOfCorpus += 1
         # progressBar = progressBar[:idx] + '\x1b[6;30;42m' + 'X' + '\x1b[0m]' + progressBar[idx:]
         # print(progressBar, ' ',  float(counter/folders),' %', end='\r')
+    print("End and start to full flush !")
+    start22 = time.time()
     indexer.flushAll()
+    print("Total time to Flush: ",time.time() - start22)
     print("Total time to parse and index: ", time.time()-startCorpus)
     #### save as json
 
