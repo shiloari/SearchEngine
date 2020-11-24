@@ -12,14 +12,13 @@ from searcher import Searcher
 import utils
 import glob
 from pathlib import Path
+import json
 
 
 def saveAsJSON(path, file_name, to_be_saved):
-    import json
-
-    with open(path+'/'+file_name+'.json', 'w') as file:
-        json.dump(to_be_saved, file)
-        file.close()
+    file = open(path + "/" + file_name + ".json", "a")
+    json.dump(to_be_saved, file, indent=4, sort_keys=True)
+    file.close()
 
 def run_engine(corpus_path, output_path, stemming):
     """
@@ -33,7 +32,6 @@ def run_engine(corpus_path, output_path, stemming):
     p = Parse()
     indexer = Indexer(output_path)
     globList = []
-    start = time.time()
 
     # folders = 0
     # for _, dirnames, _ in os.walk(corpus_path):
@@ -44,45 +42,62 @@ def run_engine(corpus_path, output_path, stemming):
     #     progressBar += ' '
     # progressBar = '[' + progressBar + ']'
     # print(progressBar, ' 0%')
+    startCorpus = time.time()
+    start = time.time()
+    sizeOfCorpus = 0
     for path in Path(corpus_path).rglob('*.parquet'):
+        parsingTime = 0
+        indexingTime = 0
         # print("New Document")
+        if sizeOfCorpus == 1:
+            break
         print("start parse parquet")
         start1 = time.time()
-        sizeOfCorpus = 0
         counter = 0
         for idx, document in enumerate(r.read_file(file_name=path)):
-                if sizeOfCorpus == 1:
-                    break
-                if counter > 9999:
-                    counter = 0
-                    print("parsed 10000 files")
+                # if counter > 9999:
+                #     print("parsed 10000 files in average time: ", (time.time()-start1)/10000)
+                #     counter = 0
+                #     start1 = time.time()
+
                 # print(idx)
                 # parse the document
+                startParse = time.time()
                 parsed_document = p.parse_doc(document)
+                parsingTime += time.time() - startParse
                 number_of_documents += 1
                 # index the document data
+                startIndex = time.time()
                 indexer.add_new_doc(parsed_document)
+                indexingTime += time.time() - startIndex
                 counter += 1
-        print("Time to parse parquet: " + str(time.time() - start1))
+        print('-------------------------------------------------------------')
+        print("Time to whole parse parquet: " + str(time.time() - start))
+        print("Average time to parse tweet: " + str((time.time() - start)/counter))
+        print('Parsing total time: ', parsingTime, ' | Indexing total time: ', indexingTime)
+        print('-------------------------------------------------------------')
+        start = time.time()
         sizeOfCorpus += 1
         # progressBar = progressBar[:idx] + '\x1b[6;30;42m' + 'X' + '\x1b[0m]' + progressBar[idx:]
         # print(progressBar, ' ',  float(counter/folders),' %', end='\r')
-    print("Total time to parse: " , time.time()-start)
-
+    indexer.flushAll()
+    print("Total time to parse and index: ", time.time()-startCorpus)
     #### save as json
 
     print('Finished parsing and indexing. Starting to export files')
 
-    saveAsJSON(Path.absolute(), 'inverted_idx', indexer.inverted_idx)
-    saveAsJSON(Path.absolute(), 'posting' , indexer.postingDict)
+    saveAsJSON('.', 'inverted_idx', indexer.inverted_idx)
+    saveAsJSON('.', 'posting' , indexer.postingDictionary)
     # utils.save_obj(indexer.inverted_idx, "inverted_idx")
     # utils.save_obj(indexer.postingDict, "posting")
 
 
 def load_index():
     print('Load inverted index')
-    inverted_index = utils.load_obj("inverted_idx")
-    return inverted_index
+    # inverted_index = ("inverted_idx")
+    with open("./inverted_idx.json") as file:
+        inverted_idx = json.load(file)
+    return inverted_idx
 
 
 def search_and_rank_query(query, inverted_index, k):

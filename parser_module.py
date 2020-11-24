@@ -35,9 +35,19 @@ class Parse:
             ModifiedNumber += digit
         return ModifiedNumber if numOfDigits > 0 else None
 
-    def cleanLastChar(self, term):
-        if term[-1] == '.' or term[-1] == ',' or term[-1] == ':' or term[-1] == ';' or term[-1] == ',':
-            return term.replace(term[-1], '')
+    def cleanEdgeChars(self, term):
+        stop = False
+        while not stop:
+            if len(term) < 2:
+                return term
+            temp = term
+            term = re.sub(r"|,|;|'|\\|\"|\'|'*'|:|\)|\(|\r|\n", '', term[0]) + term[1:-1] + re.sub(r"\.|,|;|'|\\|\"|\'|'*'|:|\)|\(|\r|\n", '', term[-1])
+            if term == temp:
+                stop = True
+        #
+        # term = term[:-1] + term[-1].replace('.','')
+        # if term[-1] == '.' or term[-1] == ',' or term[-1] == ':' or term[-1] == ';' or term[-1] == ',' or term[-1] == '*':
+        #     return term.replace(term[-1], '')
         return term
 
     ##Should recognize: Terms,Tags,Hashtags.
@@ -64,7 +74,10 @@ class Parse:
                 index += 1
                 continue
             # If last char of term is not relevant than remove it.
-            terms[index] = self.cleanLastChar(terms[index])
+            terms[index] = self.cleanEdgeChars(terms[index])
+            if terms[index] is None:
+                index += 1
+                continue
             # Handle \u cases                   #######SHOULD FIND GENERAL SOLUTION
             if '\u2019' in terms[index]:
                 terms[index] = terms[index].replace('\u2019', "\'")
@@ -139,8 +152,6 @@ class Parse:
         Remainder = '0'
         # In case of large number
         if sizeSymbol != '' and len(splited[0]) > 3:
-            if splited[0][-1] == '%':
-                print("stop")
             Module = 3 if len(splited[0]) % 3 == 0 else len(splited[0])%3
             Remainder = '0.' + splited[0][Module:Module + 3]
             return Remainder
@@ -258,7 +269,9 @@ class Parse:
         if index >= len(terms) or len(terms[index]) == 0 or not terms[index][0].isalpha() or terms[index][0].islower():
             return index
 
-        terms[index] = self.cleanLastChar(terms[index])
+        terms[index] = self.cleanEdgeChars(terms[index])
+        if terms[index] is None:
+            return index
         self.SaveCapital(terms[index], term_dict)
         recursiveText = terms[index]
         if text != '':

@@ -1,26 +1,25 @@
 import json
 import os
+import time
 import traceback
-
+from threading import Thread
+import threading
+import copy
 
 class Indexer:
 
     def __init__(self, config):
-        self.inverted_idx = {}
-        self.postingDict = {}
+        self.inverted_idx = {}  #{term:total_frequency_in_corpus}
         self.config = config
         if not os.path.isdir("./PostingFiles"):
             os.mkdir("./PostingFiles")
         self.outputPath = "./PostingFiles"
-        self.KeyDict = {}
+        self.postingDictionary = {} # {KEY: {term: [(docs,f),(doc,f)]}, {term: [(doc,f]}  }
+        self.Locks = {}
 
-    def hashTerm(self, term):
-        if term[0].isalpha():
-            pass
-        elif term[0].isnumeric():
-            pass
-        else:
-            pass
+    def flushAll(self):
+        keys = self.postingDictionary.keys()
+        self.checkFlushing(keys[0], True)
 
     def updateJSON(self, term, document_id, filename):
         # Get json data from path
@@ -47,36 +46,60 @@ class Indexer:
         json.dump(data, file, indent=4, sort_keys=True)
         file.close()
 
-    def MergeDictionaries(self, data, key):
-        for k in self.KeyDict[key].keys():
+    def MergeDictionaries(self, data, key_data):
+        for k in key_data.keys():
             if k not in data.keys():
-                data[k] = self.KeyDict[key][k]
+                data[k] = key_data[k]
             else:
-                data[k] += (self.KeyDict[key][k])
+                data[k] += (key_data[k])
                 data[k] = sorted(data[k], key=lambda x: x[0])
         return data
 
-    def checkFlushing(self, key):
-        if len(self.KeyDict[key]) > 1000:
-            file = open(self.outputPath + "/" + key + ".json", "a")
-            if os.stat(self.outputPath + "/" + key + ".json").st_size != 0:
-                with open(self.outputPath + "/" + key + ".json") as file:
-                    data = json.load(file)
-                    data = self.MergeDictionaries(data, key)
-                    # file.close()
-                    with open(self.outputPath + "/" + key + ".json", 'w') as file:
-                        json.dump(data, file, indent=4, sort_keys=True)
-                        file.close()
-            else:
-                data = self.KeyDict[key]
-                json.dump(data, file, indent=4, sort_keys=True)
-                file.close()
-                # file = open(self.outputPath + "/" + key + ".json", "a")
-                # json.dump(self.KeyDict[key], file, indent=4, sort_keys=True)
+    def Flush(self, key, key_data, *args):
+        # print('Start flush', key)
+        startFlush = time.time()
+        file = open(self.outputPath + "/" + key + ".json", "a")
+        self.Locks[key].acquire()
+        # while not file.closed:
+        #     print("waiting...")
+        #     with condition:
+        #         condition.wait()
+        if os.stat(self.outputPath + "/" + key + ".json").st_size != 0:
+            # print('Read data from json')
+            startRead = time.time()
+            with open(self.outputPath + "/" + key + ".json") as file:
+                data = json.load(file)
+                data = self.MergeDictionaries(data, key_data)
+                # print('Finish read and merge, time took is: ', time.time() - startRead)
                 # file.close()
+                with open(self.outputPath + "/" + key + ".json", 'w') as file:
+                    json.dump(data, file, indent=4, sort_keys=True)
+                    file.close()
+        else:
+            data = key_data
+            json.dump(data, file, indent=4, sort_keys=True)
+            file.close()
+        self.Locks[key].release()
 
-                # file.close()
-            self.KeyDict[key] = {}
+    def checkFlushing(self, key, FlushAll):
+        if FlushAll or len(self.postingDictionary[key]) > 15000:
+            numOfFlushed = 40
+            threads = []
+            # Append all threads to list
+            # print("Start time: ", time.time())
+            for k in sorted(self.postingDictionary, key=lambda k: len(self.postingDictionary[k]), reverse=True):
+                if FlushAll or (numOfFlushed >= 0 and len(self.postingDictionary[k]) > 14000):
+                    copyData = copy.deepcopy(self.postingDictionary[k])
+                    t = Thread(target=self.Flush, args=(k, copyData, ''))
+                    self.postingDictionary[key] = {}
+                    threads.append(t)
+                    # print("start thread: ", key, ' ,', len(copyData))
+                    t.start()
+                    numOfFlushed -= 1
+                else:
+                    break
+            # for thread in threads:
+            #     thread.join()
 
     def keyIsGarbage(self, key):
         ordKey = ord(key)
@@ -95,27 +118,29 @@ class Indexer:
         # Go over each term in the doc
         for term in document_dictionary.keys():
             try:
+                # Set main key for postings
                 if self.keyIsGarbage(term[0]):
                     key = "Garbage"
+                # elif term[0] == '@' or term[0] == '#':
                 else:
-                    key = term[0].lower()
-                if key not in self.KeyDict:
-                    self.KeyDict[key] = {}
-                # Update inverted index and posting
+                    addition = '' if len(term) == 1 else "Garbage" if self.keyIsGarbage(term[1]) else term[1].lower()
+                    key = term[0].lower() + addition
+                # set new main key, and assign lock
+                if key not in self.postingDictionary:
+                    self.postingDictionary[key] = {}
+                    self.Locks[key] = threading.Lock()
+                # update inverted index
                 if term not in self.inverted_idx.keys():
                     self.inverted_idx[term] = 1
-                    self.postingDict[term] = []
-                    # self.initializeJSON(term, document_id, filename=key)
                 else:
                     self.inverted_idx[term] += 1
-                    # self.updateJSON(term, document_id, key)
-                if term not in self.KeyDict[key].keys():
-                    self.KeyDict[key][term] = [[document_id, document_dictionary[term]]]
+                # update posting file
+                if term not in self.postingDictionary[key].keys():
+                    self.postingDictionary[key][term] = [[document_id, document_dictionary[term]]]
                 else:
-                    self.KeyDict[key][term].append([document_id,document_dictionary[term]])
-                self.checkFlushing(key)
-                # json_file_name = term # should change. hash func?
-            # self.postingDict[term].append((document.tweet_id, json_file_name))
+                    self.postingDictionary[key][term].append([document_id, document_dictionary[term]])
+                # Check if need to flush data to posting files
+                self.checkFlushing(key, False)
 
             except:
                 traceback.print_exc()
