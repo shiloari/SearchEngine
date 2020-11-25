@@ -48,16 +48,18 @@ def run_engine(corpus_path, output_path, stemming):
         parsingTime = 0
         indexingTime = 0
         # print("New Document")
-        if sizeOfCorpus == 10:
+        if sizeOfCorpus == 3:
             break
         print("start parse parquet")
         start1 = time.time()
         counter = 0
         for idx, document in enumerate(r.read_file(file_name=path)):
-                # if sizeOfCorpus == 0:
+                # if sizeOfCorpus < 7 :
                 #     counter += 1
                 #     continue
-
+                # if counter <150000:
+                #     counter += 1
+                #     continue
                 # if counter > 9999:
                 #     print("parsed 10000 files in average time: ", (time.time()-start1)/10000)
                 #     counter = 0
@@ -92,7 +94,7 @@ def run_engine(corpus_path, output_path, stemming):
     print('Finished parsing and indexing. Starting to export files')
 
     saveAsJSON('.', 'inverted_idx', indexer.inverted_idx)
-    saveAsJSON('.', 'posting' , indexer.postingDictionary)
+    # saveAsJSON('.', 'posting' , indexer.postingDictionary)
     # utils.save_obj(indexer.inverted_idx, "inverted_idx")
     # utils.save_obj(indexer.postingDict, "posting")
 
@@ -107,15 +109,15 @@ def load_index():
 
 def search_and_rank_query(query, inverted_index, k):
     p = Parse()
-    query_as_list = p.parse_sentence(query)
+    query_as_list = p.parse_sentence(query, term_dict={})
     searcher = Searcher(inverted_index)
     relevant_docs = searcher.relevant_docs_from_posting(query_as_list)
-    ranked_docs = searcher.ranker.rank_relevant_doc(relevant_docs)
+    ranked_docs = searcher.ranker.rank_relevant_doc(relevant_docs)  # { doc: 4, doc: 10}
     return searcher.ranker.retrieve_top_k(ranked_docs, k)
 
 
 def main(corpus_path, output_path, stemming, queries, num_docs_to_retrieve):
-    run_engine(corpus_path, output_path, stemming)
+    #run_engine(corpus_path, output_path, stemming)
     query = input("Please enter a query: ")
     k = int(input("Please enter number of docs to retrieve: "))
     inverted_index = load_index()

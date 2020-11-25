@@ -21,9 +21,18 @@ class Parse:
         self.stop_words = self.stop_words + extra_stop_words
         self.FirstCharDict = {}
         self.LenDict = {}
-        self.EntitiesDict = {}
+
+    def update(self):
+        pass
 
     def CheckIfNumber(self, term):
+        no_comas = term.replace(',', '')    # 2/3
+        no_symbols = no_comas.replace('%', '').replace('$', '').replace('.', '') #no_symbols = 453231.432
+        if no_symbols.isnumeric() and (no_symbols == no_comas[:-1] or no_symbols == no_comas[1:]):
+            return no_comas
+        else:
+            return None
+        """
         ModifiedNumber = ""
         numOfDigits = 0
         for digit in term:
@@ -35,7 +44,7 @@ class Parse:
                 numOfDigits += 1
             ModifiedNumber += digit
         return ModifiedNumber if numOfDigits > 0 else None
-
+        """
     def clearNonASCII(self, s):
         string_encode = s.encode("ascii", "ignore")
         string_decode = string_encode.decode()
@@ -68,8 +77,8 @@ class Parse:
             index = 1
         while index < len(terms):
             # Check for the empty string or URL - shouldn't be parsed.
-            if 'ऐ' in terms[index]:
-                print('here')
+            # if 'ऐ' in terms[index]:
+            #     print('here')
             if terms[index].__eq__('') or terms[index][:13].__eq__("https://t.co/") or any(unicodedata.category(char) == 'Lo' for char in terms[index]):
                 index += 1
                 continue
@@ -377,7 +386,7 @@ class Parse:
         retweet_quoted_urls = doc_as_list[12]
         retweet_quoted_url_indices = doc_as_list[13]
         #print(tweet_id)
-        if tweet_id == '1281023608681377793':
+        if tweet_id == '1283747919804329984':
             print('asd')
         term_dict = {}  # Number of appearances of term per document.
         if url != '{}':

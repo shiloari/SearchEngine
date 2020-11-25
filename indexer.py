@@ -83,14 +83,14 @@ class Indexer:
         self.Locks[second_key].release()
 
     def checkFlushing(self, main_key, second_key, FlushAll):
-        if FlushAll or len(self.postingDictionary[main_key][second_key]) > 15000:
+        if FlushAll or len(self.postingDictionary[main_key][second_key]) > 20000:
             numOfFlushed = 40
             threads = []
             # Append all threads to list
             # print("Start time: ", time.time())
             for m in sorted(self.postingDictionary, key=lambda m: len(self.postingDictionary[m]), reverse=True):
                 for k in sorted(self.postingDictionary[m], key=lambda k: len(self.postingDictionary[m][k]), reverse=True):
-                    if FlushAll or (numOfFlushed >= 0 and len(self.postingDictionary[m][k]) > 14000):
+                    if FlushAll or (numOfFlushed >= 0 and len(self.postingDictionary[m][k]) > 18000):
                         copyData = copy.deepcopy(self.postingDictionary[m][k])
                         t = Thread(target=self.Flush, args=(m, k, copyData, ''))
                         self.postingDictionary[m][k] = {}  # a -> ax {key:[values]} = {}
@@ -140,21 +140,51 @@ class Indexer:
                 if second_key not in self.postingDictionary[main_key].keys():
                     self.postingDictionary[main_key][second_key] = {}
                     self.Locks[second_key] = threading.Lock()
-                if term not in self.postingDictionary[main_key][second_key].keys():
-                    self.postingDictionary[main_key][second_key][term] = [[document_id, document_dictionary[term]]]
+                l_term = term.lower()
+                u_term = term.upper()
+                # term is upper and upper in dict or term is lower and lower in dict
+                if term in self.postingDictionary[main_key][second_key].keys():
+                    self.postingDictionary[main_key][second_key][term].append(
+                        [document_id, document_dictionary[term]])
                 else:
-                    self.postingDictionary[main_key][second_key][term].append([document_id, document_dictionary[term]])
+                    # term is upper and lower in dict
+                    if l_term in self.postingDictionary[main_key][second_key].keys():  # lower exists!
+                      # print('lower in dict, term not')
+                      self.postingDictionary[main_key][second_key][l_term].append(
+                            [document_id, document_dictionary[term]/len(document_dictionary)])
+                    #term is lower and upper in dict
+                    elif u_term in self.postingDictionary[main_key][second_key].keys():  # lower exists!
+                        # print('upper in dict, term not')
+                        self.postingDictionary[main_key][second_key][term] = self.postingDictionary[main_key][second_key][u_term]
+                        # print(self.postingDictionary[main_key][second_key][term])
+                        self.postingDictionary[main_key][second_key][term].append([document_id, document_dictionary[term]/len(document_dictionary)])
+                        # print(self.postingDictionary[main_key][second_key][term])
+                        self.postingDictionary[main_key][second_key].pop(u_term)
+                        # print(self.postingDictionary[main_key][second_key][u_term])
+                    #none exists
+                    else:
+                        self.postingDictionary[main_key][second_key][term] = [[document_id, document_dictionary[term]/len(document_dictionary)]]
                 ###################################
-                # initialize inverted index, update total appearances
-                if term not in self.inverted_idx.keys():
-                    # self.inverted_idx[term] = [document_dictionary[term], 1, self.outputPath+'/'+main_key+'/'+second_key]
-                    self.inverted_idx[term] = 1
-                    # self.inverted_idx[term][0] = document_dictionary[term]
-                    # self.inverted_idx[term][1] = 1
+                # term in inverted index - lower or upper. update.
+                if term in self.inverted_idx.keys():
+                    # self.inverted_idx[term] += 1
+                    self.inverted_idx[term][0] += document_dictionary[term]
+                    self.inverted_idx[term][1] += 1
                     # self.inverted_idx[term][2] = self.outputPath+'/'+main_key+'/'+second_key    # path
                 else:
-                    # self.inverted_idx[term][0] += document_dictionary[term]
-                    self.inverted_idx[term]+= 1
+                    # term is upper but lower in inverted index
+                    if l_term in self.inverted_idx.keys():
+                        self.inverted_idx[l_term][0] += document_dictionary[term]
+                        self.inverted_idx[l_term][1] += 1
+                    # term is lower but upper in inverted index
+                    elif u_term in self.inverted_idx.keys():
+                        self.inverted_idx[term] = [self.inverted_idx[u_term][0] + document_dictionary[term],
+                                                   self.inverted_idx[u_term][1] + 1, self.inverted_idx[u_term][2]]
+                        # self.inverted_idx[term][1] = self.inverted_idx[u_term][1] + 1
+                        self.inverted_idx.pop(u_term)
+                    # none exists in inverted index. append.
+                    else:
+                        self.inverted_idx[term] = [document_dictionary[term], 1, self.outputPath+'/'+main_key+'/'+second_key+'.json']
                 ###################################
                 # Check if need to flush data to posting files
                 self.checkFlushing(main_key, second_key, False)
