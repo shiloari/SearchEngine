@@ -48,7 +48,7 @@ def run_engine(corpus_path, output_path, stemming):
         parsingTime = 0
         indexingTime = 0
         # print("New Document")
-        if sizeOfCorpus == 3:
+        if sizeOfCorpus == 1:
             break
         print("start parse parquet")
         start1 = time.time()
@@ -87,6 +87,7 @@ def run_engine(corpus_path, output_path, stemming):
     print("End and start to full flush !")
     start22 = time.time()
     indexer.flushAll()
+    indexer.WriteCorpusSize()
     print("Total time to Flush: ",time.time() - start22)
     print("Total time to parse and index: ", time.time()-startCorpus)
     #### save as json
@@ -107,19 +108,19 @@ def load_index():
     return inverted_idx
 
 
-def search_and_rank_query(query, inverted_index, k):
+def search_and_rank_query(query, inverted_index, k, output_path):
     p = Parse()
     query_as_list = p.parse_sentence(query, term_dict={})
     searcher = Searcher(inverted_index)
     relevant_docs = searcher.relevant_docs_from_posting(query_as_list)
-    ranked_docs = searcher.ranker.rank_relevant_doc(relevant_docs)  # { doc: 4, doc: 10}
+    ranked_docs = searcher.ranker.rank_relevant_doc(relevant_docs, query_as_list, inverted_index, output_path)  # { doc: 4, doc: 10}
     return searcher.ranker.retrieve_top_k(ranked_docs, k)
 
 
 def main(corpus_path, output_path, stemming, queries, num_docs_to_retrieve):
-    #run_engine(corpus_path, output_path, stemming)
+    # run_engine(corpus_path, output_path, stemming)
     query = input("Please enter a query: ")
     k = int(input("Please enter number of docs to retrieve: "))
     inverted_index = load_index()
-    for doc_tuple in search_and_rank_query(query, inverted_index, num_docs_to_retrieve):
+    for doc_tuple in search_and_rank_query(query, inverted_index, num_docs_to_retrieve, output_path):
         print('tweet id: {}, score (unique common words with query): {}'.format(doc_tuple[0], doc_tuple[1]))

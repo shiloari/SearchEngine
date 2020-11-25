@@ -1,7 +1,7 @@
 
 class Document:
 
-    def __init__(self, tweet_id, tweet_date=None, full_text=None, url=None, retweet_text=None, retweet_url=None,
+    def __init__(self, doc_id, tweet_id, tweet_date=None, full_text=None, url=None, retweet_text=None, retweet_url=None,
                  quote_text=None, quote_url=None, term_doc_dictionary=None, doc_length=0):
         """
         :param tweet_id: tweet id
@@ -15,6 +15,7 @@ class Document:
         :param term_doc_dictionary: dictionary of term and documents.
         :param doc_length: doc length
         """
+        self.doc_id = doc_id
         self.tweet_id = tweet_id
         self.tweet_date = tweet_date
         self.full_text = full_text

@@ -9,42 +9,23 @@ import copy
 
 class Indexer:
 
-    def __init__(self, config):
+    def __init__(self, output_path):
         self.inverted_idx = {}  #{term:[total_frequency_in_corpus, unique_docs, path]}
-        self.config = config
-        if not os.path.isdir("./PostingFiles"):
-            os.mkdir("./PostingFiles")
-        self.outputPath = "./PostingFiles"
+        self.outputPath = output_path
+        if not os.path.isdir(output_path+ "/PostingFiles"):
+            os.mkdir(output_path+"/PostingFiles")
+        self.postingsPath = self.outputPath+"/PostingFiles"
         self.postingDictionary = {} # {KEY: {term: [(docs,f),(doc,f)]}, {term: [(doc,f]}  }
         self.Locks = {}
+        self.NumberOfTweets = 0
 
     def flushAll(self):
        # keys = self.postingDictionary.keys()
         self.checkFlushing(0,0, True)
 
-    def updateJSON(self, term, document_id, filename):
-        # Get json data from path
-        with open(self.outputPath + "/" + filename + ".json") as file:
-            data = json.load(file)
-        # get cluster by key (should choose how to represent the data)
-
-        temp = data[term]  # Edit later
-        # newData = {term: document_id}  # Add data here
-        temp.append(document_id)  # append to cluster
-        data.update({term: temp})
-        # Write back to json file
-        file = open(self.outputPath + '/' + filename + ".json", "a")
-        json.dump(data, file, indent=4, sort_keys=True)
-        file.close()
-
-    def initializeJSON(self, term, document_id, filename):
-        file = open(self.outputPath + "/" + filename + ".json", "a")
-        data = {
-            term: [
-                document_id
-            ]
-        }
-        json.dump(data, file, indent=4, sort_keys=True)
+    def WriteCorpusSize(self):
+        file = open(self.postingsPath + "/CorpusSize.json", "a")
+        json.dump(self.NumberOfTweets, file, indent=4)
         file.close()
 
     def MergeDictionaries(self, data, key_data):
@@ -59,21 +40,21 @@ class Indexer:
     def Flush(self, main_key, second_key, key_data, *args):
         # print('Start flush', key)
         startFlush = time.time()
-        file = open(self.outputPath + "/" + main_key + '/' + second_key + ".json", "a")
+        file = open(self.postingsPath + "/" + main_key + '/' + second_key + ".json", "a")
         self.Locks[second_key].acquire()
         # while not file.closed:
         #     print("waiting...")
         #     with condition:
         #         condition.wait()
-        if os.stat(self.outputPath + "/" +main_key + '/' + second_key + ".json").st_size != 0:
+        if os.stat(self.postingsPath + "/" + main_key + '/' + second_key + ".json").st_size != 0:
             # print('Read data from json')
             startRead = time.time()
-            with open(self.outputPath + "/" + main_key + '/' + second_key + ".json") as file:
+            with open(self.postingsPath + "/" + main_key + '/' + second_key + ".json") as file:
                 data = json.load(file)
                 data = self.MergeDictionaries(data, key_data)
                 # print('Finish read and merge, time took is: ', time.time() - startRead)
                 # file.close()
-                with open(self.outputPath + "/" + main_key + '/' + second_key + ".json", 'w') as file:
+                with open(self.postingsPath + "/" + main_key + '/' + second_key + ".json", 'w') as file:
                     json.dump(data, file, indent=4, sort_keys=True)
                     file.close()
         else:
@@ -116,7 +97,9 @@ class Indexer:
         :param document: a document need to be indexed.
         :return: -
         """
-        document_id = document.tweet_id
+        self.NumberOfTweets += 1
+        document_id = document.doc_id
+        tweet_id = document.tweet_id
         document_dictionary = document.term_doc_dictionary
         # Go over each term in the doc
         for term in document_dictionary.keys():
@@ -133,8 +116,8 @@ class Indexer:
                 #################################
                 # initialize postings directories, dictionaries
                 if main_key not in self.postingDictionary.keys():
-                    if not os.path.isfile(self.outputPath+"/"+main_key):
-                        os.mkdir(self.outputPath+"/"+main_key) #"./posting/A
+                    if not os.path.isfile(self.postingsPath + "/" + main_key):
+                        os.mkdir(self.postingsPath + "/" + main_key) #"./posting/A
                     self.postingDictionary[main_key] = {}  # {A:{}}
                 # update inverted index
                 if second_key not in self.postingDictionary[main_key].keys():
@@ -145,25 +128,25 @@ class Indexer:
                 # term is upper and upper in dict or term is lower and lower in dict
                 if term in self.postingDictionary[main_key][second_key].keys():
                     self.postingDictionary[main_key][second_key][term].append(
-                        [document_id, document_dictionary[term]])
+                        [document_id, tweet_id, document_dictionary[term]/len(document_dictionary.keys())])
                 else:
                     # term is upper and lower in dict
                     if l_term in self.postingDictionary[main_key][second_key].keys():  # lower exists!
                       # print('lower in dict, term not')
                       self.postingDictionary[main_key][second_key][l_term].append(
-                            [document_id, document_dictionary[term]/len(document_dictionary)])
+                            [document_id, tweet_id, document_dictionary[term]/len(document_dictionary.keys())])
                     #term is lower and upper in dict
                     elif u_term in self.postingDictionary[main_key][second_key].keys():  # lower exists!
                         # print('upper in dict, term not')
                         self.postingDictionary[main_key][second_key][term] = self.postingDictionary[main_key][second_key][u_term]
                         # print(self.postingDictionary[main_key][second_key][term])
-                        self.postingDictionary[main_key][second_key][term].append([document_id, document_dictionary[term]/len(document_dictionary)])
+                        self.postingDictionary[main_key][second_key][term].append([document_id, tweet_id, document_dictionary[term]/len(document_dictionary.keys())])
                         # print(self.postingDictionary[main_key][second_key][term])
                         self.postingDictionary[main_key][second_key].pop(u_term)
                         # print(self.postingDictionary[main_key][second_key][u_term])
                     #none exists
                     else:
-                        self.postingDictionary[main_key][second_key][term] = [[document_id, document_dictionary[term]/len(document_dictionary)]]
+                        self.postingDictionary[main_key][second_key][term] = [[document_id, tweet_id, document_dictionary[term]/len(document_dictionary.keys())]]
                 ###################################
                 # term in inverted index - lower or upper. update.
                 if term in self.inverted_idx.keys():
@@ -184,7 +167,7 @@ class Indexer:
                         self.inverted_idx.pop(u_term)
                     # none exists in inverted index. append.
                     else:
-                        self.inverted_idx[term] = [document_dictionary[term], 1, self.outputPath+'/'+main_key+'/'+second_key+'.json']
+                        self.inverted_idx[term] = [document_dictionary[term], 1, self.postingsPath + '/' + main_key + '/' + second_key + '.json']
                 ###################################
                 # Check if need to flush data to posting files
                 self.checkFlushing(main_key, second_key, False)
