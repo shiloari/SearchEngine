@@ -48,17 +48,20 @@ def run_engine(corpus_path, output_path, stemming):
         parsingTime = 0
         indexingTime = 0
         # print("New Document")
-        if sizeOfCorpus == 1:
+        if sizeOfCorpus == 10:
             break
         print("start parse parquet")
         start1 = time.time()
         counter = 0
         for idx, document in enumerate(r.read_file(file_name=path)):
+                # if sizeOfCorpus == 0:
+                #     counter += 1
+                #     continue
+
                 # if counter > 9999:
                 #     print("parsed 10000 files in average time: ", (time.time()-start1)/10000)
                 #     counter = 0
                 #     start1 = time.time()
-
                 # print(idx)
                 # parse the document
                 startParse = time.time()

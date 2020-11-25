@@ -17,10 +17,11 @@ class Parse:
 
     def __init__(self):
         self.stop_words = stopwords.words('english')
-        extra_stop_words = ['i\'ll', 'i\'d', 'i\'m', 'i\'ve']
+        extra_stop_words = ['i\'ll', 'i\'d', 'i\'m', 'i\'ve', 'http', 'https', 'www']
         self.stop_words = self.stop_words + extra_stop_words
         self.FirstCharDict = {}
         self.LenDict = {}
+        self.EntitiesDict = {}
 
     def CheckIfNumber(self, term):
         ModifiedNumber = ""
@@ -35,19 +36,21 @@ class Parse:
             ModifiedNumber += digit
         return ModifiedNumber if numOfDigits > 0 else None
 
+    def clearNonASCII(self, s):
+        string_encode = s.encode("ascii", "ignore")
+        string_decode = string_encode.decode()
+        return string_decode
+
     def cleanEdgeChars(self, term):
         stop = False
         while not stop:
             if len(term) < 2:
+                term = re.sub(r"\.|,|;|'|\\|\"|\'|'*'|:|\)|\(|\r|\n|~|\+|{|}|=|^|&|_|\[|\]", '', term)
                 return term
             temp = term
-            term = re.sub(r"|,|;|'|\\|\"|\'|'*'|:|\)|\(|\r|\n", '', term[0]) + term[1:-1] + re.sub(r"\.|,|;|'|\\|\"|\'|'*'|:|\)|\(|\r|\n", '', term[-1])
+            term = re.sub(r"|\,|;|'|\\|\"|\'|'*'|:|\)|\(|\r|\n|~|\+|{|}|=|^|&|_|\[|\]", '', term[0]) + term[1:-1] + re.sub(r"\.|,|;|'|\\|\"|\'|'*'|:|\)|\(|\r|\n|~|\+|{|}|=|^|&|_|\[|\]", '', term[-1])
             if term == temp:
                 stop = True
-        #
-        # term = term[:-1] + term[-1].replace('.','')
-        # if term[-1] == '.' or term[-1] == ',' or term[-1] == ':' or term[-1] == ';' or term[-1] == ',' or term[-1] == '*':
-        #     return term.replace(term[-1], '')
         return term
 
     ##Should recognize: Terms,Tags,Hashtags.
@@ -57,38 +60,31 @@ class Parse:
         :param text:
         :return:
         """
-
         index = 0
         delimiters = "[ \n]"
         terms = re.split(delimiters, text)
         # Snip three dots (...) from end of unfinished sentence.
-        if len(terms[-1]) > 0 and terms[-1][-1] == '\u2026':
-            terms[-1] = terms[-1][:-1]
         if terms[0] == 'RT':
             index = 1
-        #text_tokens = word_tokenize(terms)
-        #terms = [w.lower() for w in text_tokens if w not in self.stop_words]
         while index < len(terms):
             # Check for the empty string or URL - shouldn't be parsed.
-            if terms[index].__eq__('') or terms[index][:13].__eq__("https://t.co/"):
+            if 'ऐ' in terms[index]:
+                print('here')
+            if terms[index].__eq__('') or terms[index][:13].__eq__("https://t.co/") or any(unicodedata.category(char) == 'Lo' for char in terms[index]):
                 index += 1
                 continue
+            if not unicodedata.category(terms[index][-1]) == 'No':
+                terms[index] = self.clearNonASCII(terms[index])
             # If last char of term is not relevant than remove it.
             terms[index] = self.cleanEdgeChars(terms[index])
-            if terms[index] is None:
+            if terms[index] is None or terms[index] == '' :
                 index += 1
                 continue
-            # Handle \u cases                   #######SHOULD FIND GENERAL SOLUTION
-            if '\u2019' in terms[index]:
-                terms[index] = terms[index].replace('\u2019', "\'")
             # Check for stop word - continue and don't add it.
             if terms[index].lower() in self.stop_words:
                 index += 1
                 continue
-            if terms[index].__eq__(''):
-                index += 1
-                continue
-            # Parse as expression
+            # Parse as expression or entity
             if terms[index][0].isupper() and terms[index][0].isalpha():
                 index = self.parseCapitalLetterWord('', terms, index, term_dict)
                 continue
@@ -168,7 +164,36 @@ class Parse:
                 or nextTerm == 'percent' or nextTerm == 'percentage' or nextTerm == 'buck' \
                 or nextTerm == 'dollar' or False
 
-    def checkForUnicode(self,number,number1, term_dict):
+
+    def checkForUnicode(self,number,fraction, term_dict):
+        fraction_is_not_unicode = True
+        number_is_not_unicode = True
+        number_until_last_not_unicode = True
+        ################ 5,5    1/2, '',  20 1/2, '' 20
+        # check each path - if unicode or not
+        for i in range(0, len(number)):
+            if unicodedata.category(number[i]) != 'Nd':
+                number_is_not_unicode = False
+                if i != len(number) - 1:
+                    number_until_last_not_unicode = False
+                break
+        #####################################
+        if not number_is_not_unicode:
+            if number_until_last_not_unicode and len(number) != 1: #numeric and fraction in number
+                asFraction = unicodedata.numeric(number[-1])
+                corrected_number = str(float(number[:-1]) + float(asFraction))
+                splitedFraction = re.split("[.]", corrected_number)
+                return splitedFraction[0], splitedFraction[1], False
+            else:   #single fraction
+                result = 0
+                for i in range(len(number), 0):
+                    result += int(unicodedata.numeric(number[i]))*math.pow(10, i)
+                self.SaveTerm(str(result), term_dict)
+                return str(result), fraction, True
+        else:
+            return number, fraction, False
+
+        """
         for digit in number:
             try:
                 digit = str(int(digit))
@@ -182,12 +207,13 @@ class Parse:
                 except:
                     try:
                         corrected_number = int(unicodedata.numeric(number))
-                        remainder = number1
+                        remainder = fraction
                     except:
                         self.SaveTerm(number, term_dict)
-                        return number,number1, True
+                        return number,fraction, True
                 return str(corrected_number), str(remainder), False
-        return number,number1, False
+        return number,fraction, False
+        """
 
     def parseNumber(self, number, nextTerm, term_dict):
         #print("begin parse number: ", number)
@@ -351,13 +377,19 @@ class Parse:
         retweet_quoted_urls = doc_as_list[12]
         retweet_quoted_url_indices = doc_as_list[13]
         #print(tweet_id)
-        # if tweet_id == '1280917894902284288':
-            # print('asd')
+        if tweet_id == '1281023608681377793':
+            print('asd')
         term_dict = {}  # Number of appearances of term per document.
         if url != '{}':
             self.parseURL(url, term_dict)
         if retweet_url != None:
             self.parseURL(retweet_url, term_dict)
+
+        # print(unicodedata.category('𝐌'))
+        #print(self.checkForUnicode('5','',term_dict))
+        # print(self.checkForUnicode('½','',term_dict))
+        # print(self.checkForUnicode('5','3',term_dict))
+        # print(self.checkForUnicode('5½','',term_dict))
 
         tokenized_text = self.parse_sentence(full_text, term_dict)  # All tokens in document
 
