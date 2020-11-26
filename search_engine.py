@@ -48,7 +48,7 @@ def run_engine(corpus_path, output_path, stemming):
         parsingTime = 0
         indexingTime = 0
         # print("New Document")
-        if sizeOfCorpus == 1:
+        if sizeOfCorpus == 3:
             break
         print("start parse parquet")
         start1 = time.time()
@@ -60,10 +60,10 @@ def run_engine(corpus_path, output_path, stemming):
                 # if counter <150000:
                 #     counter += 1
                 #     continue
-                # if counter > 9999:
-                #     print("parsed 10000 files in average time: ", (time.time()-start1)/10000)
-                #     counter = 0
-                #     start1 = time.time()
+                if counter > 24999:
+                    print("parsed 25000 files in average time: ", (time.time()-start1)/25000)
+                    counter = 0
+                    start1 = time.time()
                 # print(idx)
                 # parse the document
                 startParse = time.time()
@@ -86,7 +86,7 @@ def run_engine(corpus_path, output_path, stemming):
         # print(progressBar, ' ',  float(counter/folders),' %', end='\r')
     print("End and start to full flush !")
     start22 = time.time()
-    indexer.flushAll()
+    indexer.Flush(indexer.json_key+1)
     indexer.WriteCorpusSize()
     print("Total time to Flush: ",time.time() - start22)
     print("Total time to parse and index: ", time.time()-startCorpus)
@@ -114,13 +114,13 @@ def search_and_rank_query(query, inverted_index, k, output_path):
     searcher = Searcher(inverted_index)
     relevant_docs = searcher.relevant_docs_from_posting(query_as_list)
     ranked_docs = searcher.ranker.rank_relevant_doc(relevant_docs, query_as_list, inverted_index, output_path)  # { doc: 4, doc: 10}
-    return searcher.ranker.retrieve_top_k(ranked_docs, k)
+    top_1000 =  searcher.ranker.retrieve_top_k(ranked_docs, 1000)
 
 
 def main(corpus_path, output_path, stemming, queries, num_docs_to_retrieve):
-    # run_engine(corpus_path, output_path, stemming)
+    #run_engine(corpus_path, output_path, stemming)
     query = input("Please enter a query: ")
-    k = int(input("Please enter number of docs to retrieve: "))
+    num_docs_to_retrieve = int(input("Please enter number of docs to retrieve: "))
     inverted_index = load_index()
-    for doc_tuple in search_and_rank_query(query, inverted_index, num_docs_to_retrieve, output_path):
+    for doc_tuple in search_and_rank_query(query, inverted_index, num_docs_to_retrieve, output_path+"/PostingFiles"):
         print('tweet id: {}, score (unique common words with query): {}'.format(doc_tuple[0], doc_tuple[1]))

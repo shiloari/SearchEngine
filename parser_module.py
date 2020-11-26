@@ -398,8 +398,8 @@ class Parse:
         retweet_quoted_urls = doc_as_list[12]
         retweet_quoted_url_indices = doc_as_list[13]
         # print(tweet_id)
-        if tweet_id == '1283747919804329984':
-            print('asd')
+        # if tweet_id == '1283747919804329984':
+        #     print('asd')
         term_dict = {}  # Number of appearances of term per document.
         if url != '{}':
             self.parseURL(url, term_dict)
@@ -407,8 +407,10 @@ class Parse:
             self.parseURL(retweet_url, term_dict)
         # if retweet_quoted_urls is not None:
         #     self.parseURL(retweet_quoted_urls, term_dict)
+        #start = time.time()
+        #full_text = "#MIFF 68½ wanders the world, offering a digital feast in lockdown @MIFFofficial https://theage.com.au/culture/movies/miff-68-wanders-the-world-offering-a-digital-feast-in-lockdown-20200715-p55c95.html via @theage"
         tokenized_text = self.parse_sentence(full_text, term_dict)  # All tokens in document
-
+        # print(time.time() -start)
         doc_length = len(tokenized_text)  # after text operations.
 
         document = Document(self.Doc_ID, tweet_id, tweet_date, full_text, url, retweet_text, retweet_url, quote_text,
