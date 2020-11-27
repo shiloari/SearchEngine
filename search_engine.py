@@ -16,8 +16,6 @@ import json
 
 
 def saveAsJSON(path, file_name, to_be_saved,how_to):
-    if os.path.exists(path + "/" + file_name + ".json"):
-        os.remove(path + "/" + file_name + ".json")
     file = open(path + "/" + file_name + ".json", how_to)
     json.dump(to_be_saved, file, indent=4, sort_keys=True)
     file.close()
