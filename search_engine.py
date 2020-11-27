@@ -51,7 +51,7 @@ def clearSingleEntities(inv_index, parser, output_path):
                 data[doc_idstr][1] -= data[doc_idstr][3][term]
                 data[doc_idstr][3].pop(term)
             data[doc_idstr][2] = max(data[doc_idstr][3].values())
-        saveAsJSON(output_path + '/PostingFiles', str(json_key), data,"a")
+        saveAsJSON(output_path + '/PostingFiles', str(json_key), data,"w")
 
 def run_engine(corpus_path, output_path, stemming):
     """
