@@ -16,6 +16,8 @@ import json
 
 
 def saveAsJSON(path, file_name, to_be_saved,how_to):
+    if os.path.exists(path + "/" + file_name + ".json"):
+        os.remove(path + "/" + file_name + ".json")
     file = open(path + "/" + file_name + ".json", how_to)
     json.dump(to_be_saved, file, indent=4, sort_keys=True)
     file.close()
@@ -51,7 +53,7 @@ def clearSingleEntities(inv_index, parser, output_path):
                 data[doc_idstr][1] -= data[doc_idstr][3][term]
                 data[doc_idstr][3].pop(term)
             data[doc_idstr][2] = max(data[doc_idstr][3].values())
-        saveAsJSON(output_path + '/PostingFiles', str(json_key), data,"w")
+        saveAsJSON(output_path + '/PostingFiles', str(json_key), data,"a")
 
 def run_engine(corpus_path, output_path, stemming):
     """
@@ -130,7 +132,7 @@ def run_engine(corpus_path, output_path, stemming):
 
     print('Finished parsing and indexing. Starting to export files')
     start22 = time.time()
-    #clearSingleEntities(indexer.inverted_idx, p, output_path)
+    clearSingleEntities(indexer.inverted_idx, p, output_path)
     print("Total time to clear entities: ", time.time() - start22)
     start22 = time.time()
     saveAsJSON('.', 'inverted_idx', indexer.inverted_idx,"a")
