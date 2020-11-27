@@ -31,7 +31,7 @@ class Searcher:
     def MergeDocs(self, all_docs):
         from heapq import merge
         last = None
-        for doc in merge(all_docs):
+        for doc in merge(*all_docs):    ### remember *
             if doc != last:  # remove duplicates
                 last = doc
                 yield doc

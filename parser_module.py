@@ -23,8 +23,8 @@ class Parse:
         self.LenDict = {}
         self.Doc_ID = 0
 
-    def update(self):
-        pass
+    def isEntity(self, s):
+        return ' ' in s and s.isupper()
 
     def CheckIfNumber(self, term):
         no_comas = term.replace(',', '')  # 2/3
