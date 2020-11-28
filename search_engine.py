@@ -24,12 +24,16 @@ def saveAsJSON(path, file_name, to_be_saved,how_to):
 def clearSingleEntities(inv_index, parser, output_path):
     EntitiesDict = {}       #{doc_id: [term1,term2]}
     docs_to_clear = {}      # {json0: [doc1 ,doc2]}
+    terms_to_be_removed = []
     for term in inv_index.keys():
         if parser.isEntity(term) and len(inv_index[term][1]) == 1:
             if inv_index[term][1][0] in EntitiesDict.keys():
                 EntitiesDict[inv_index[term][1][0]].append(term)
             else:
                 EntitiesDict[inv_index[term][1][0]] = [term]
+            terms_to_be_removed.append(term)
+    for term in terms_to_be_removed:
+        inv_index.pop(term)
     if len(EntitiesDict.keys()) == 0:
         return
     sorted_keys = sorted(EntitiesDict.keys())
@@ -37,7 +41,7 @@ def clearSingleEntities(inv_index, parser, output_path):
     docs_to_clear[key_num] = []
     for doc_id in sorted_keys:
         if doc_id > (key_num + 1) * 100000:  # should get new data, update key_num
-            key_num += 1
+            key_num = int(doc_id/100000)
             docs_to_clear[key_num] = [doc_id]
         else:
             docs_to_clear[key_num] += [doc_id]
@@ -82,7 +86,7 @@ def run_engine(corpus_path, output_path, stemming):
         parsingTime = 0
         indexingTime = 0
         print("New Document")
-        if sizeOfCorpus == 1:
+        if sizeOfCorpus == 4:
             break
         print("start parse parquet")
         start1 = time.time()
