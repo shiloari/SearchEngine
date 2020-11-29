@@ -129,7 +129,7 @@ class Parse:
         # text_tokens = word_tokenize(text)
         # text_tokens_without_stopwords = [w.lower() for w in text_tokens if w not in self.stop_words]
         # self.parseURL(text, term_dict)
-        return term_dict.keys()
+        return term_dict
 
     def checkFraction(self, fraction):
         if fraction is None:
@@ -339,6 +339,10 @@ class Parse:
             return
         if term == '' or term.lower() in self.stop_words:
             return
+        if not term[0].isupper():
+            term = term.lower()
+        else:
+            term = term.upper()
         if term in term_dict:
             term_dict[term] += 1
         else:
@@ -411,7 +415,7 @@ class Parse:
         #full_text = "#MIFF 68½ wanders the world, offering a digital feast in lockdown @MIFFofficial https://theage.com.au/culture/movies/miff-68-wanders-the-world-offering-a-digital-feast-in-lockdown-20200715-p55c95.html via @theage"
         tokenized_text = self.parse_sentence(full_text, term_dict)  # All tokens in document
         # print(time.time() -start)
-        doc_length = len(tokenized_text)  # after text operations.
+        doc_length = len(tokenized_text.keys())  # after text operations.
 
         document = Document(self.Doc_ID, tweet_id, tweet_date, full_text, url, retweet_text, retweet_url, quote_text,
                             quote_url, term_dict, doc_length)

@@ -17,15 +17,15 @@ class Indexer:
         self.postingsPath = self.outputPath+"/PostingFiles"
         self.postingDictionary = {} #  {doc_id: [tweet_id, doc_len, max_f, term_dict]}  }
         self.Locks = {}
-        self.num_of_words_in_corpus = 0
+        self.num_of_docs_in_corpus = 0
         self.json_key = 0
 
     # def flushAll(self):
     #    se
 
     def WriteCorpusSize(self):
-        file = open(self.postingsPath + "/wordCorpusSize.json", "a")
-        json.dump(self.num_of_words_in_corpus, file, indent=4)
+        file = open(self.postingsPath + "/CorpusSize.json", "a")
+        json.dump(self.num_of_docs_in_corpus, file, indent=4)
         file.close()
 
     def MergeDictionaries(self, data, key_data):
@@ -87,7 +87,7 @@ class Indexer:
         self.json_key = int(int(document_id)/100000)  ################ set the best hash func
         # Go over each term in the doc
         num_values = sum(document_dictionary.values())
-        self.num_of_words_in_corpus += num_values
+        self.num_of_docs_in_corpus += 1
         max_f = 0
         if len(document_dictionary.values()) >0:
             max_f = max(document_dictionary.values())

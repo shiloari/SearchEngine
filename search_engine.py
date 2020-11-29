@@ -3,6 +3,7 @@ import time
 import unicodedata
 from numpy import unicode
 
+import local_method
 import ranker
 from reader import ReadFile
 from configuration import ConfigClass
@@ -40,7 +41,7 @@ def clearSingleEntities(inv_index, parser, output_path):
     key_num = int(sorted_keys[0]/100000)
     docs_to_clear[key_num] = []
     for doc_id in sorted_keys:
-        if doc_id > (key_num + 1) * 100000:  # should get new data, update key_num
+        if doc_id >= (key_num + 1) * 100000:  # should get new data, update key_num
             key_num = int(doc_id/100000)
             docs_to_clear[key_num] = [doc_id]
         else:
@@ -86,7 +87,7 @@ def run_engine(corpus_path, output_path, stemming):
         parsingTime = 0
         indexingTime = 0
         print("New Document")
-        if sizeOfCorpus == 4:
+        if sizeOfCorpus == 1:
             break
         print("start parse parquet")
         start1 = time.time()
@@ -124,6 +125,9 @@ def run_engine(corpus_path, output_path, stemming):
         sizeOfCorpus += 1
         # progressBar = progressBar[:idx] + '\x1b[6;30;42m' + 'X' + '\x1b[0m]' + progressBar[idx:]
         # print(progressBar, ' ',  float(counter/folders),' %', end='\r')
+    # if(sizeOfCorpus == 0):
+    #     with open(indexer.outputPath + "/inverted_idx.json") as file:
+    #         Indexer.postingDictionary = json.load(file)
     print("End and start to full flush !")
     start22 = time.time()
     indexer.Flush(indexer.json_key)
@@ -154,15 +158,21 @@ def load_index():
 
 def search_and_rank_query(query, inverted_index, k, output_path):
     p = Parse()
-    query_as_list = p.parse_sentence(query, term_dict={})
+    query_as_dict = p.parse_sentence(query, term_dict={})
     searcher = Searcher(inverted_index)
-    relevant_docs = searcher.relevant_docs_from_posting(query_as_list)
-    ranked_docs = searcher.ranker.rank_relevant_doc(relevant_docs, query_as_list, inverted_index, output_path)  # { doc: 4, doc: 10}
-    top_1000 =  searcher.ranker.retrieve_top_k(ranked_docs, 1000)
-
+    relevant_docs = searcher.relevant_docs_from_posting(query_as_dict)
+    ranked_docs, sorted_keys = searcher.ranker.rank_relevant_doc(relevant_docs, query_as_dict, inverted_index, output_path)  # { doc: 4, doc: 10}
+    top_100_keys = searcher.ranker.retrieve_top_k(sorted_keys, 100)
+    expanded_query = local_method.build_association_matrix(inverted_index, query_as_dict, top_100_keys, output_path)
+    ranked_docs, sorted_keys = searcher.ranker.rank_relevant_doc(relevant_docs, expanded_query, inverted_index, output_path)  # { doc: 4, doc: 10}
+    top_k_keys = searcher.ranker.retrieve_top_k(sorted_keys, k)
+    top_K = []
+    for doc_id in top_k_keys:
+        top_K.append(ranked_docs[doc_id])
+    return top_K
 
 def main(corpus_path, output_path, stemming, queries, num_docs_to_retrieve):
-    run_engine(corpus_path, output_path, stemming)
+    #run_engine(corpus_path, output_path, stemming)
     query = input("Please enter a query: ")
     num_docs_to_retrieve = int(input("Please enter number of docs to retrieve: "))
     inverted_index = load_index()

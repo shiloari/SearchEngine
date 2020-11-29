@@ -1,5 +1,6 @@
 import json
 import os
+import traceback
 
 from indexer import Indexer
 from parser_module import Parse
@@ -36,7 +37,7 @@ class Searcher:
                 last = doc
                 yield doc
 
-    def relevant_docs_from_posting(self, query_as_list):
+    def relevant_docs_from_posting(self, query_as_dict):
         """
         This function loads the posting list and count the amount of relevant documents per term.
         :param query: query
@@ -44,7 +45,7 @@ class Searcher:
         """
         relevant_docs = {} ## {doc: {term1: df, term2: df}}
         all_docs = []
-        for term in query_as_list:
+        for term in query_as_dict.keys():
             try: # an example of checks that you have to do
                 #####
                 # find in indexer -> posting file (json) -> dict(relevant docs): {doc_id:num_of_terms_relevant}
@@ -52,8 +53,10 @@ class Searcher:
                     if term.upper() in self.inverted_index.keys() else None
                 if correct_term is None:
                     continue
-                all_docs += self.inverted_index[term][1]
+                #print(self.inverted_index[correct_term][1])
+                all_docs.append(self.inverted_index[correct_term][1])
             except:
-                print('term {} not found in posting'.format(term))
+                # traceback.print_exc()
+                print('term {} not found in posting'.format(correct_term))
         sorted_all_docs = list(self.MergeDocs(all_docs))
         return sorted_all_docs
