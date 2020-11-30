@@ -17,7 +17,7 @@ class Parse:
 
     def __init__(self):
         self.stop_words = stopwords.words('english')
-        extra_stop_words = ['i\'ll', 'i\'d', 'i\'m', 'i\'ve', 'http', 'https', 'www']
+        extra_stop_words = ['i\'ll', 'i\'d', 'i\'m', 'i\'ve']
         self.stop_words = self.stop_words + extra_stop_words
         self.FirstCharDict = {}
         self.LenDict = {}
@@ -349,25 +349,31 @@ class Parse:
             term_dict[term] = 1
 
     def parseURL(self, text, term_dict):
+        url_stop_words = ['status', 'web', 'i', 'p']
         parsed = re.split('"', text)
         if len(parsed) > 3:
             to_be_parsed = parsed[3]
             splited = re.split("[:/?=&+-]", to_be_parsed)
-            self.SaveTerm(splited[0], term_dict)
+            #self.SaveTerm(splited[0], term_dict)
             if splited[3][:3] == 'www':
-                self.SaveTerm(splited[3][:3], term_dict)
                 self.SaveTerm(splited[3][4:], term_dict)
             else:
                 self.SaveTerm(splited[3], term_dict)
             for term in splited[4:]:
-                self.SaveTerm(term, term_dict)
+                if term not in url_stop_words:
+                    self.SaveTerm(term, term_dict)
 
     def parseHashTag(self, term, term_dict):
-        splitedByUnderScore = re.split('[_]', term)
+        term = term.replace('#','')
+        if term == '':
+            return
+        splitedByUnderScore = re.split('[_]', term)     #  #stayAtHome
         result = '#'
         for term in splitedByUnderScore:
-            result += term.lower()
-            self.parse_sentence(term, term_dict)
+            splitedWords = re.split('(?=[A-Z])', term)
+            for splitedWord in splitedWords:
+                result += splitedWord.lower()
+                self.parse_sentence(splitedWord, term_dict)
         self.SaveTerm(result, term_dict)
 
     def parseTag(self, term, term_dict):
@@ -405,6 +411,8 @@ class Parse:
         # if tweet_id == '1283747919804329984':
         #     print('asd')
         term_dict = {}  # Number of appearances of term per document.
+        self.parseCapitalLetterWord('',['The','Dollar'],0,term_dict)
+        self.parseURL('"https://t.co/DmkvVxDmbm":"https://twitter.com/i/web/status/1280861731032633344"', term_dict)
         if url != '{}':
             self.parseURL(url, term_dict)
         if retweet_url is not None:
