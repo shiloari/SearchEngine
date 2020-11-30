@@ -55,7 +55,8 @@ def clearSingleEntities(inv_index, parser, output_path):
             for term in EntitiesDict[doc_id]:
                 data[doc_idstr][1] -= data[doc_idstr][3][term]
                 data[doc_idstr][3].pop(term)
-            data[doc_idstr][2] = max(data[doc_idstr][3].values())
+            if(len(data[doc_idstr][3].values()) != 0):
+                data[doc_idstr][2] = max(data[doc_idstr][3].values())
         saveAsJSON(output_path + '/PostingFiles', str(json_key), data,"w")
 
 def run_engine(corpus_path, output_path, stemming):
@@ -87,8 +88,8 @@ def run_engine(corpus_path, output_path, stemming):
         parsingTime = 0
         indexingTime = 0
         print("New Document")
-        if sizeOfCorpus == 1:
-            break
+        # if sizeOfCorpus == 0:
+        #     break
         print("start parse parquet")
         start1 = time.time()
         counter = 0
@@ -100,10 +101,10 @@ def run_engine(corpus_path, output_path, stemming):
                 # if counter <150000:
                 #     counter += 1
                 #     continue
-                if counter > 24999:
-                    print("parsed 25000 files in average time: ", (time.time()-start1)/25000)
-                    counter = 0
-                    start1 = time.time()
+                # if counter > 24999:
+                #     print("parsed 25000 files in average time: ", (time.time()-start1)/25000)
+                #     counter = 0
+                #     start1 = time.time()
                 # print(idx)
                 # parse the document
                 startParse = time.time()
@@ -125,12 +126,14 @@ def run_engine(corpus_path, output_path, stemming):
         sizeOfCorpus += 1
         # progressBar = progressBar[:idx] + '\x1b[6;30;42m' + 'X' + '\x1b[0m]' + progressBar[idx:]
         # print(progressBar, ' ',  float(counter/folders),' %', end='\r')
-    # if(sizeOfCorpus == 0):
-    #     with open(indexer.outputPath + "/inverted_idx.json") as file:
-    #         Indexer.postingDictionary = json.load(file)
+    if(sizeOfCorpus == 0):
+        with open(indexer.outputPath + "/inverted_idx_save.json",'r') as file:
+            x = json.load(file)
+            file.close()
+    #indexer.inverted_idx = x.copy()
     print("End and start to full flush !")
     start22 = time.time()
-    indexer.Flush(indexer.json_key)
+    indexer.Flush(indexer.json_key,indexer.postingDictionary)
     indexer.WriteCorpusSize()
     print("Total time to Flush: ",time.time() - start22)
     print("Total time to parse and index: ", time.time()-startCorpus)
@@ -138,7 +141,7 @@ def run_engine(corpus_path, output_path, stemming):
 
     print('Finished parsing and indexing. Starting to export files')
     start22 = time.time()
-    clearSingleEntities(indexer.inverted_idx, p, output_path)
+    #clearSingleEntities(indexer.inverted_idx, p, output_path)
     print("Total time to clear entities: ", time.time() - start22)
     start22 = time.time()
     saveAsJSON('.', 'inverted_idx', indexer.inverted_idx,"a")
@@ -150,9 +153,11 @@ def run_engine(corpus_path, output_path, stemming):
 
 def load_index():
     print('Load inverted index')
+    start = time.time()
     # inverted_index = ("inverted_idx")
-    with open("./inverted_idx.json") as file:
+    with open("C:/Users/gal/Desktop/inverted_idx.json") as file:
         inverted_idx = json.load(file)
+    print('Finito! : ',time.time() -start)
     return inverted_idx
 
 

@@ -19,6 +19,7 @@ class Indexer:
         self.Locks = {}
         self.num_of_docs_in_corpus = 0
         self.json_key = 0
+        self.jsonSize = 100000
 
     # def flushAll(self):
     #    se
@@ -37,10 +38,12 @@ class Indexer:
                 data[k] = sorted(data[k], key=lambda x: x[0])
         return data
 
-    def Flush(self, main_key):
-        with open(self.postingsPath + "/" + str(main_key) + ".json", 'w') as file:
-            json.dump(self.postingDictionary, file, indent=4, sort_keys=True)
-            file.close()
+    def Flush(self, main_key,posting_dict):
+        print("Posting len: ",len(posting_dict))
+        if len(posting_dict.keys()) != 0:
+            with open(self.postingsPath + "/" + str(main_key) + ".json", 'w+') as file:
+                json.dump(posting_dict, file, indent=4, sort_keys=True)
+                file.close()
 
 
     def checkFlushing(self, main_key, second_key, FlushAll):
@@ -84,7 +87,7 @@ class Indexer:
         document_id = document.doc_id
         tweet_id = document.tweet_id
         document_dictionary = document.term_doc_dictionary
-        self.json_key = int(int(document_id)/100000)  ################ set the best hash func
+        self.json_key = int(int(document_id)/self.jsonSize)  ################ set the best hash func
         # Go over each term in the doc
         num_values = sum(document_dictionary.values())
         self.num_of_docs_in_corpus += 1
@@ -115,9 +118,11 @@ class Indexer:
                 else:
                     self.inverted_idx[term] = [document_dictionary[term], [document_id]]
         # Flush if needed
-        if len(self.postingDictionary.keys()) > 99999:
-            self.Flush(self.json_key)
+        if len(self.postingDictionary.keys()) > self.jsonSize-1:
+            #threading.Thread(target=self.Flush, args=(self.json_key, self.postingDictionary.copy())).start()
+            self.Flush(self.json_key,self.postingDictionary)
             self.postingDictionary.clear()
+
 
 
 
