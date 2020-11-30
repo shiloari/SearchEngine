@@ -7,6 +7,7 @@ from nltk.tokenize import word_tokenize
 from numpy import unicode
 from numpy.compat import basestring
 
+import stemmer
 from document import Document
 import re
 import math
@@ -15,13 +16,17 @@ from nltk.corpus import words
 
 class Parse:
 
-    def __init__(self):
+    def __init__(self, Stemming = False):
         self.stop_words = stopwords.words('english')
         extra_stop_words = ['i\'ll', 'i\'d', 'i\'m', 'i\'ve']
         self.stop_words = self.stop_words + extra_stop_words
         self.FirstCharDict = {}
         self.LenDict = {}
         self.Doc_ID = 0
+        self.Stemmer = None
+        if Stemming:
+            self.Stemmer = stemmer.Stemmer()
+
 
     def isEntity(self, s):
         return ' ' in s and s.isupper()
@@ -335,16 +340,26 @@ class Parse:
 
     def SaveTerm(self, term, term_dict):  # add boolean if last word in sen.
         term = term.replace('?', '').replace('!', '')
+        l_term = term.lower()
+        u_term = term.upper()
         if term == '':
             return
-        if term == '' or term.lower() in self.stop_words:
+        if term == '' or l_term in self.stop_words:
             return
-        if not term[0].isupper():
-            term = term.lower()
+        wasCapital = (term[0] == u_term[0])
+        if self.Stemmer is not None:
+            stemmed = self.Stemmer.stem_term(term)
+            term = stemmed.upper() if wasCapital else stemmed.lower()
         else:
-            term = term.upper()
+            if not wasCapital:
+                term = l_term
+            else:
+                term = u_term
         if term in term_dict:
             term_dict[term] += 1
+        elif u_term in term_dict and term == l_term:
+            term_dict[term] = term_dict[u_term] + 1
+            term_dict.pop(u_term)
         else:
             term_dict[term] = 1
 
@@ -411,8 +426,6 @@ class Parse:
         # if tweet_id == '1283747919804329984':
         #     print('asd')
         term_dict = {}  # Number of appearances of term per document.
-        self.parseCapitalLetterWord('',['The','Dollar'],0,term_dict)
-        self.parseURL('"https://t.co/DmkvVxDmbm":"https://twitter.com/i/web/status/1280861731032633344"', term_dict)
         if url != '{}':
             self.parseURL(url, term_dict)
         if retweet_url is not None:
@@ -422,6 +435,7 @@ class Parse:
         #start = time.time()
         #full_text = "#MIFF 68½ wanders the world, offering a digital feast in lockdown @MIFFofficial https://theage.com.au/culture/movies/miff-68-wanders-the-world-offering-a-digital-feast-in-lockdown-20200715-p55c95.html via @theage"
         tokenized_text = self.parse_sentence(full_text, term_dict)  # All tokens in document
+
         # print(time.time() -start)
         doc_length = len(tokenized_text.keys())  # after text operations.
 

@@ -1,8 +1,9 @@
 import os
 import time
 import unicodedata
-from numpy import unicode
+import numpy as np
 
+import indexer
 import local_method
 import ranker
 from reader import ReadFile
@@ -38,11 +39,11 @@ def clearSingleEntities(inv_index, parser, output_path):
     if len(EntitiesDict.keys()) == 0:
         return
     sorted_keys = sorted(EntitiesDict.keys())
-    key_num = int(sorted_keys[0]/100000)
+    key_num = int(sorted_keys[0]/indexer.jsonSize)
     docs_to_clear[key_num] = []
     for doc_id in sorted_keys:
-        if doc_id >= (key_num + 1) * 100000:  # should get new data, update key_num
-            key_num = int(doc_id/100000)
+        if doc_id >= (key_num + 1) * indexer.jsonSize:  # should get new data, update key_num
+            key_num = int(doc_id/indexer.jsonSize)
             docs_to_clear[key_num] = [doc_id]
         else:
             docs_to_clear[key_num] += [doc_id]
@@ -50,13 +51,19 @@ def clearSingleEntities(inv_index, parser, output_path):
     num_of_cleared_in_corpus = 0
     for json_key in docs_to_clear.keys():
         data = ranker.readData(json_key, output_path+ '/PostingFiles')
-        for doc_id in docs_to_clear[json_key]:
+        for doc_id in data.keys():
             doc_idstr = str(doc_id)
-            for term in EntitiesDict[doc_id]:
-                data[doc_idstr][1] -= data[doc_idstr][3][term]
-                data[doc_idstr][3].pop(term)
-            if(len(data[doc_idstr][3].values()) != 0):
-                data[doc_idstr][2] = max(data[doc_idstr][3].values())
+            if doc_id in EntitiesDict.keys():
+                for entity in EntitiesDict[doc_id]:
+                    data[doc_idstr][1] -= data[doc_idstr][3][entity]
+                    data[doc_idstr][3].pop(entity)
+            values = data[doc_idstr][3].values()
+            if len(values) != 0:
+                d_vector = np.array(values)
+                data[doc_idstr][2] = max(values)
+            else:
+                data[doc_idstr][2] = 0
+                d_vector = np.array([0])
         saveAsJSON(output_path + '/PostingFiles', str(json_key), data,"w")
 
 def run_engine(corpus_path, output_path, stemming):
@@ -68,7 +75,7 @@ def run_engine(corpus_path, output_path, stemming):
 
     config = ConfigClass()
     r = ReadFile(corpus_path=corpus_path)
-    p = Parse()
+    p = Parse(stemming)
     indexer = Indexer(output_path)
     globList = []
 
@@ -88,7 +95,7 @@ def run_engine(corpus_path, output_path, stemming):
         parsingTime = 0
         indexingTime = 0
         print("New Document")
-        # if sizeOfCorpus == 0:
+        # if sizeOfCorpus == 1:
         #     break
         print("start parse parquet")
         start1 = time.time()
@@ -141,7 +148,7 @@ def run_engine(corpus_path, output_path, stemming):
 
     print('Finished parsing and indexing. Starting to export files')
     start22 = time.time()
-    #clearSingleEntities(indexer.inverted_idx, p, output_path)
+    clearSingleEntities(indexer.inverted_idx, p, output_path)
     print("Total time to clear entities: ", time.time() - start22)
     start22 = time.time()
     saveAsJSON('.', 'inverted_idx', indexer.inverted_idx,"a")
@@ -163,17 +170,19 @@ def load_index():
 
 def search_and_rank_query(query, inverted_index, k, output_path):
     p = Parse()
+    start = time.time()
     query_as_dict = p.parse_sentence(query, term_dict={})
     searcher = Searcher(inverted_index)
     relevant_docs = searcher.relevant_docs_from_posting(query_as_dict)
     ranked_docs, sorted_keys = searcher.ranker.rank_relevant_doc(relevant_docs, query_as_dict, inverted_index, output_path)  # { doc: 4, doc: 10}
     top_100_keys = searcher.ranker.retrieve_top_k(sorted_keys, 100)
-    expanded_query = local_method.build_association_matrix(inverted_index, query_as_dict, top_100_keys, output_path)
-    ranked_docs, sorted_keys = searcher.ranker.rank_relevant_doc(relevant_docs, expanded_query, inverted_index, output_path)  # { doc: 4, doc: 10}
-    top_k_keys = searcher.ranker.retrieve_top_k(sorted_keys, k)
+    # expanded_query = local_method.build_association_matrix(inverted_index, query_as_dict, top_100_keys, output_path)
+    # ranked_docs, sorted_keys = searcher.ranker.rank_relevant_doc(relevant_docs, expanded_query, inverted_index, output_path)  # { doc: 4, doc: 10}
+    # top_k_keys = searcher.ranker.retrieve_top_k(sorted_keys, k)
     top_K = []
-    for doc_id in top_k_keys:
+    for doc_id in top_100_keys:
         top_K.append(ranked_docs[doc_id])
+    print ("finish : ",time.time() -start)
     return top_K
 
 def main(corpus_path, output_path, stemming, queries, num_docs_to_retrieve):
@@ -181,5 +190,12 @@ def main(corpus_path, output_path, stemming, queries, num_docs_to_retrieve):
     query = input("Please enter a query: ")
     num_docs_to_retrieve = int(input("Please enter number of docs to retrieve: "))
     inverted_index = load_index()
+    conter = 0
+    print(len(inverted_index))
+    for teem in inverted_index.keys():
+        start = time.time()
+        print(inverted_index["trump"][0])
+        print(time.time()-start)
+        conter += 1
     for doc_tuple in search_and_rank_query(query, inverted_index, num_docs_to_retrieve, output_path+"/PostingFiles"):
         print('tweet id: {}, score (unique common words with query): {}'.format(doc_tuple[0], doc_tuple[1]))

@@ -1,7 +1,12 @@
 import json
 import math
+import time
+
 import numpy as np
 from numpy.linalg import norm
+
+import indexer
+
 
 def readData(key_num, output_path):
     with open(output_path + "/" + str(key_num) + ".json", 'r') as file:
@@ -9,6 +14,11 @@ def readData(key_num, output_path):
         file.close()
     return data
 
+def get_correct_term(term, dictionary):
+    l_term = term.lower()
+    u_term = term.upper()
+    corrected_term = l_term if l_term in dictionary.keys() else u_term if u_term in dictionary.keys() else None
+    return corrected_term
 
 class Ranker:
     topCosSim = {}
@@ -34,7 +44,7 @@ class Ranker:
             num_of_docs_in_corpus = json.load(file)
             file.close()
 
-        key_num = int(relevant_docs[0] / 100000)
+        key_num = int(relevant_docs[0] / indexer.jsonSize)
         data = readData(key_num, output_path)
         ####for each doc in relevant docs
         fixed_query_dict = {}
@@ -43,16 +53,20 @@ class Ranker:
         for doc_id in relevant_docs:
             q_Vector = []
             d_Vector = []
-            if doc_id >= (key_num + 1) * 100000:  # should get new data, update key_num
-                key_num = int(doc_id / 100000)
+            if doc_id >= (key_num + 1) * indexer.jsonSize:  # should get new data, update key_num
+                key_num = int(doc_id / indexer.jsonSize)
+                start = time.time()
+                #print('before reading ', key_num)
                 data = readData(key_num, output_path)
+                #print('after reading ', key_num, ' ', time.time()-start)
             doc_dictionary = data[str(doc_id)][3]
             tweet_id = data[str(doc_id)][0]
+            start_compute = time.time()
             for term in doc_dictionary.keys():
-                l_term = term.lower()
-                u_term = term.upper()
-                corrected_term = l_term if l_term in inverted_index.keys() else u_term if u_term in inverted_index.keys() else None
-                l_correct = corrected_term.lower()
+                corrected_term = get_correct_term(term, inverted_index)
+                l_correct = None if corrected_term is None else corrected_term.lower()
+                if l_correct is None:
+                    continue
                 if l_correct not in fixed_query_dict.keys():
                     q_Vector.append(0)
                 else:
@@ -66,9 +80,10 @@ class Ranker:
             q_Vector_np = np.array(q_Vector)
             d_Vector_np = np.array(d_Vector)
             cos_sim = np.dot(q_Vector_np, np.transpose(d_Vector_np)) / (norm(q_Vector_np) * norm(d_Vector_np))
-            if cos_sim > 0.7 and len(Ranker.topCosSim.keys()) <= 100000:
+            if cos_sim > 0.9 and len(Ranker.topCosSim.keys()) <= indexer.jsonSize:
                 Ranker.topCosSim[doc_id] = doc_dictionary
             ranking_Dict[doc_id] = (tweet_id, cos_sim)
+            #print('finished compute for doc ', time.time()-start_compute)
         return ranking_Dict, sorted(ranking_Dict, key=lambda rank: ranking_Dict[rank][1], reverse=True)
 
 
