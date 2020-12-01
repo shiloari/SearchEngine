@@ -27,7 +27,7 @@ class Ranker:
         pass
 
     @staticmethod
-    def rank_relevant_doc(relevant_docs, query_as_dict, inverted_index, output_path):
+    def rank_relevant_doc(relevant_docs, query_as_dict, inverted_index, output_path, vectorDict):
         """
         This function provides rank for each relevant document and sorts them by their scores.
         The current score considers solely the number of terms shared by the tweet (full_text) and query.
@@ -38,30 +38,43 @@ class Ranker:
         # rank all relevant docs - F(tf idf , CosSim, improvements?) = rank
         # get the top K ranked docs - K = 100? 1000?
         # use Local Method - built matrix.
-        # return sorted
+        # return sorted     N < normaQ/qd <                       1/#q*(normaQ*normaD)/qd
         ranking_Dict = {}  # {doc: [[tweet_id, rank], [...]]}
-        # with open(output_path + "/CorpusSize.json") as file:
-        norma_q = norm(np.array(list(query_as_dict.values())))
-        fixed_query_dict = {}
+        norm_Q = norm(np.array(list(query_as_dict.values())))
+        num_of_terms_in_query = len(query_as_dict.keys())
+        for doc_id in relevant_docs:
+            qd = 0
+            matches_counter = 0
+            for q_term in query_as_dict.keys(): # for: q*d (similarity)
+                correted_term = get_correct_term(q_term, inverted_index)
+                if correted_term in vectorDict[doc_id][0].keys():
+                    qd += query_as_dict[q_term]*vectorDict[doc_id][0][correted_term]
+                    matches_counter += 1
+            norm_D = norm(np.array(list(vectorDict[doc_id][0].values())))
+            matches_counter = matches_counter/num_of_terms_in_query
+            ranking_Dict[doc_id] = [vectorDict[doc_id][1], matches_counter*qd/(norm_D*norm_Q)]
+        return ranking_Dict, sorted(ranking_Dict, key=lambda rank: ranking_Dict[rank][1], reverse=True)
+
+    # fixed_query_dict = {}
         # for term in query_as_dict.keys():
         #     fixed_query_dict[term.lower()] = query_as_dict[term]
-        sorted_query = sorted(query_as_dict.keys())
+        #sorted_query = sorted(query_as_dict.keys())
         # main_key = sorted_query[0][0].lower()
         # if not (main_key.isalpha() or main_key.isnumeric() or main_key == '@' or main_key == '#'):
         #     main_key = "Garbage"
         # data = utils.load_obj(output_path + "/TermsData/" + main_key)
-        for term in sorted_query:
-            correct_term = get_correct_term(term, inverted_index)
+        # for term in sorted_query:
+        #     correct_term = get_correct_term(term, inverted_index)
             # if ' ' in correct_term and term.isupper():
             #     correct_term = term.replace(' ', '').lower()
-            for doc_id in inverted_index[correct_term][1].keys():
-                data_list = inverted_index[correct_term][1][doc_id]
-                if doc_id in ranking_Dict.keys():
-                    ranking_Dict[doc_id][1] += (query_as_dict[term] * data_list[1]) / (norma_q * data_list[2])
-                else:
-                    ranking_Dict[data_list[0]] = [data_list[0], (query_as_dict[term] * data_list[1]) / (norma_q * data_list[2])]
-
-            # if term[0] != main_key:
+            # for doc_id in inverted_index[correct_term][1].keys():
+            #     data_list = inverted_index[correct_term][1][doc_id]
+            #     if doc_id in ranking_Dict.keys():
+            #         ranking_Dict[doc_id][1] += (query_as_dict[term] * data_list[1]) / (norma_q * data_list[2])
+            #     else:
+            #         ranking_Dict[data_list[0]] = [data_list[0], (query_as_dict[term] * data_list[1]) / (norma_q * data_list[2])]
+            #
+            # # if term[0] != main_key:
             #     if not (main_key.isalpha() or main_key.isnumeric() or main_key == '@' or main_key == '#'):
             #         main_key = "Garbage"
             #     else:
@@ -70,7 +83,6 @@ class Ranker:
 
             # for data_list in data[correct_term]:
 
-        return ranking_Dict, sorted(ranking_Dict, key=lambda rank: ranking_Dict[rank][1], reverse=True)
 
 
         #

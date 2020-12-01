@@ -34,14 +34,6 @@ class Indexer:
         json.dump(self.num_of_docs_in_corpus, file, indent=4)
         file.close()
 
-    def MergeDictionaries(self, data, key_data):
-        for k in key_data.keys():
-            if k not in data.keys():
-                data[k] = key_data[k]
-            else:
-                data[k] += (key_data[k])
-                data[k] = sorted(data[k], key=lambda x: x[0])
-        return data
 
     def Flush(self, main_key, data, output_path):
         if len(data) != 0:
@@ -49,34 +41,6 @@ class Indexer:
             #     json.dump(data, file, indent=4, sort_keys=True)
             #     file.close()
             utils.save_obj(data,output_path + "/" + str(main_key))
-
-
-    def checkFlushing(self, main_key, second_key, FlushAll):
-        if FlushAll or len(self.postingDictionary[main_key][second_key]) > 20000:
-            numOfFlushed = 40
-            threads = []
-            # Append all threads to list
-            # print("Start time: ", time.time())
-            for m in sorted(self.postingDictionary, key=lambda m: len(self.postingDictionary[m]), reverse=True):
-                for k in sorted(self.postingDictionary[m], key=lambda k: len(self.postingDictionary[m][k]), reverse=True):
-                    if FlushAll or (numOfFlushed >= 0 and len(self.postingDictionary[m][k]) > 18000):
-                        copyData = copy.deepcopy(self.postingDictionary[m][k])
-                        t = Thread(target=self.Flush, args=(m, k, copyData, ''))
-                        self.postingDictionary[m][k] = {}  # a -> ax {key:[values]} = {}
-                        threads.append(t)
-                        # print("start thread: ", key, ' ,', len(copyData))
-                        t.start()
-                        numOfFlushed -= 1
-                    else:
-                        break
-                # for thread in threads:
-                #     thread.join()
-
-    def keyIsGarbage(self, key):
-        ordKey = ord(key)
-        return ordKey == 34 or ordKey == 42 or ordKey == 46 or ordKey == 47 or ordKey == 58 or ordKey == 60 \
-            or ordKey == 62 or ordKey == 63 or ordKey == 92 or ordKey == 124 or ordKey == 10 or ordKey == 13 \
-            or unicodedata.category(key) == 'Lo'
 
 
 
@@ -107,25 +71,25 @@ class Indexer:
             u_term = term.upper()
             if term in self.inverted_idx.keys():
                 self.inverted_idx[term][0] += document_dictionary[term]
-                self.inverted_idx[term][1][document_id] = [tweet_id, None, None]
+                self.inverted_idx[term][1] += [document_id]
             else:
                 # term is upper but lower in inverted index
                 if l_term in self.inverted_idx.keys():
-                    self.inverted_idx[l_term][0] += document_dictionary[term]
-                    self.inverted_idx[l_term][1][document_id] = [tweet_id, None, None]
                     # self.inverted_idx[l_term][0] += document_dictionary[term]
-                    # self.inverted_idx[l_term][1] += [document_id]
+                    # self.inverted_idx[l_term][1][document_id] = [tweet_id, None, None]
+                    self.inverted_idx[l_term][0] += document_dictionary[term]
+                    self.inverted_idx[l_term][1] += [document_id]
                 # term is lower but upper in inverted index
                 elif u_term in self.inverted_idx.keys():
-                    self.inverted_idx[term] = self.inverted_idx[u_term]
-                    self.inverted_idx[term][1][document_id] = [tweet_id, None, None]
-                    self.inverted_idx[term][0] += document_dictionary[term]
-                    # self.inverted_idx[term] = [self.inverted_idx[u_term][0] + document_dictionary[term],
-                    #                            self.inverted_idx[u_term][1] + [document_id]]
+                    # self.inverted_idx[term] = self.inverted_idx[u_term]
+                    # self.inverted_idx[term][1][document_id] = [tweet_id, None, None]
+                    # self.inverted_idx[term][0] += document_dictionary[term]
+                    self.inverted_idx[term] = [self.inverted_idx[u_term][0] + document_dictionary[term],
+                                               self.inverted_idx[u_term][1] + [document_id]]
                     self.inverted_idx.pop(u_term)
                 # none exists in inverted index. append.
                 else:
-                    self.inverted_idx[term] =[document_dictionary[term], {document_id: [tweet_id, None, None]}]
+                    self.inverted_idx[term] = [document_dictionary[term], [document_id]]
         # Flush if needed
         if len(self.postingDictionary.keys()) > jsonSize-1:
             #threading.Thread(target=self.Flush, args=(self.json_key, self.postingDictionary.copy())).start()

@@ -23,35 +23,30 @@ def saveAsJSON(path, file_name, to_be_saved,how_to):
     json.dump(to_be_saved, file, indent=4, sort_keys=True)
     file.close()
 
-def updateInvertedIndex(doc_id, data, inv_index, num_of_docs_in_corpus):   #termsData = {term: [[doc_id, tweet_id, d, |d|]]}
+def updateVectorsFile(doc_id, data, inv_index, num_of_docs_in_corpus, vectorsDict):   #termsData = {term: [[doc_id, tweet_id, d, |d|]]}
     values = list(data[3].values())
-    sigmaTfidf =0
+    #sigmaTfidf =0
+    vectorsDict[doc_id] = [{}, data[0]]
+   # vectorsDict[doc_id][0] = {} #all terms in doc and tf_idf
+    #vectorsDict[doc_id][1] = data[0]    #tweet id
     for term in data[3].keys():
         corrected_term = ranker.get_correct_term(term, inv_index)
         tf = data[3][term]/len(values)
-        idf = math.log(num_of_docs_in_corpus / len(inv_index[corrected_term][1].keys()), 2)
+        idf = math.log(num_of_docs_in_corpus / len(inv_index[corrected_term][1]), 2)
         tf_idf = tf*idf
-        data[3][term] = tf_idf
-        sigmaTfidf += math.pow(tf_idf, 2)
-    norma_d = math.sqrt(sigmaTfidf)
+        vectorsDict[doc_id][0][corrected_term] = tf_idf
+        # sigmaTfidf += math.pow(tf_idf, 2)
+    # norma_d = math.sqrt(sigmaTfidf)
     # v_norma_d = np.array(values)
     # norma_d = norm(v_norma_d)
-    for term in data[3].keys():
-        corrected_term = ranker.get_correct_term(term, inv_index)
-        if corrected_term is None:
-            print('this was none in update: ', term)
-        if corrected_term in inv_index.keys():
-            inv_index[corrected_term][1][doc_id][1] = data[3][term]
-            inv_index[corrected_term][1][doc_id][2] = norma_d
-        else:
-            print('Update term not in inverted index: ', corrected_term)
 
 def clearSingleEntities(inv_index, parser, output_path, num_of_docs_in_corpus):
     EntitiesDict = {}       #{doc_id: [term1,term2]}
     docs_to_clear = {}      # {pkl_id: [doc1 ,doc2]}
+    vectorsDict = {}
     for term in inv_index.keys():
         if inv_index[term][0] == 1:
-            single_doc = list(inv_index[term][1].keys())[0]
+            single_doc = inv_index[term][1][0]
             if single_doc in EntitiesDict.keys():
                 EntitiesDict[single_doc].append(term)
             else:
@@ -90,8 +85,12 @@ def clearSingleEntities(inv_index, parser, output_path, num_of_docs_in_corpus):
                 data[doc_id][2] = max(values)
             else:
                 data[doc_id][2] = 0
-            updateInvertedIndex(doc_id, data[doc_id], inv_index, num_of_docs_in_corpus)
+            updateVectorsFile(doc_id, data[doc_id], inv_index, num_of_docs_in_corpus, vectorsDict)
         utils.save_obj(data, output_path + '/PostingFiles/' + str(pkl_key))
+    utils.save_obj(vectorsDict, output_path + '/PostingFiles/vectorsFile')
+    vectorsDict.clear()
+    docs_to_clear.clear()
+    EntitiesDict.clear()
         # saveAsJSON(output_path + '/PostingFiles', str(json_key), data,"w")
 
 
@@ -149,8 +148,8 @@ def run_engine(corpus_path, output_path, stemming):
         parsingTime = 0
         indexingTime = 0
         print("New Document")
-        # if sizeOfCorpus == 1:
-        #     break
+        if sizeOfCorpus == 1:
+            break
         print("start parse parquet")
         start1 = time.time()
         counter = 0
@@ -230,23 +229,23 @@ def load_index(output_path):
     return inverted_idx
 
 
-def search_and_rank_query(query, inverted_index, k, output_path):
+def search_and_rank_query(query, inverted_index, k, output_path, vectorDict):
     p = Parse()
     start = time.time()
     query_as_dict = p.parse_sentence(query, term_dict={})
     searcher = Searcher(inverted_index)
     relevant_docs = searcher.relevant_docs_from_posting(query_as_dict)
     start_rank = time.time()
-    ranked_docs, sorted_keys = searcher.ranker.rank_relevant_doc(relevant_docs, query_as_dict, inverted_index, output_path)  # { doc: 4, doc: 10}
+    ranked_docs, sorted_keys = searcher.ranker.rank_relevant_doc(relevant_docs, query_as_dict, inverted_index, output_path, vectorDict)  # { doc: 4, doc: 10}
     print('end rank ', time.time()-start_rank)
     top_100_keys = searcher.ranker.retrieve_top_k(sorted_keys, 100)
     matrix_start = time.time()
-    # expanded_query = local_method.build_association_matrix(inverted_index, query_as_dict, top_100_keys, output_path)
-    # print('matrix time ', time.time()-matrix_start)
-    # start_rank = time.time()
-    # ranked_docs, sorted_keys = searcher.ranker.rank_relevant_doc(relevant_docs, expanded_query, inverted_index, output_path)  # { doc: 4, doc: 10}
-    # print('end rank ', time.time()-start_rank)
-    # top_k_keys = searcher.ranker.retrieve_top_k(sorted_keys, k)
+    expanded_query = local_method.build_association_matrix(inverted_index, query_as_dict, top_100_keys, output_path, vectorDict)
+    print('matrix time ', time.time()-matrix_start)
+    start_rank = time.time()
+    ranked_docs, sorted_keys = searcher.ranker.rank_relevant_doc(relevant_docs, expanded_query, inverted_index, output_path, vectorDict)  # { doc: 4, doc: 10}
+    print('end rank ', time.time()-start_rank)
+    top_k_keys = searcher.ranker.retrieve_top_k(sorted_keys, k)
     top_K = []
     for doc_id in top_100_keys:
         top_K.append(ranked_docs[doc_id])
@@ -254,9 +253,10 @@ def search_and_rank_query(query, inverted_index, k, output_path):
     return top_K
 
 def main(corpus_path, output_path, stemming, queries, num_docs_to_retrieve):
-    run_engine(corpus_path, output_path, stemming)
+    #run_engine(corpus_path, output_path, stemming)
+    vectorsFile = utils.load_obj(output_path + '/PostingFiles/vectorsFile')
+    inverted_index = load_index(output_path)
     query = input("Please enter a query: ")
     num_docs_to_retrieve = int(input("Please enter number of docs to retrieve: "))
-    inverted_index = load_index(output_path)
-    for doc_tuple in search_and_rank_query(query, inverted_index, num_docs_to_retrieve, output_path+"/PostingFiles"):
+    for doc_tuple in search_and_rank_query(query, inverted_index, num_docs_to_retrieve, output_path+"/PostingFiles", vectorsFile):
         print('tweet id: {}, score (unique common words with query): {}'.format(doc_tuple[0], doc_tuple[1]))
