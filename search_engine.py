@@ -77,8 +77,8 @@ def clearSingleEntities(inv_index, parser, output_path, num_of_docs_in_corpus):
                         data[doc_id][3].pop(entity)
                         inv_index.pop(entity)
                         if counter == 0:
-                            print(entity)
-                            print(entity in inv_index.keys())
+                            # print(entity)
+                            # print(entity in inv_index.keys())
                             counter += 1
             values = data[doc_id][3].values()
             if len(values) != 0:
@@ -130,7 +130,7 @@ def run_engine(corpus_path, output_path, stemming):
     r = ReadFile(corpus_path=corpus_path)
     p = Parse(stemming)
     indexer = Indexer(output_path)
-    globList = []
+    # globList = []
 
     # folders = 0
     # for _, dirnames, _ in os.walk(corpus_path):
@@ -147,9 +147,9 @@ def run_engine(corpus_path, output_path, stemming):
     for path in Path(corpus_path).rglob('*.parquet'):
         parsingTime = 0
         indexingTime = 0
-        print("New Document")
-        if sizeOfCorpus == 1:
-            break
+        # print("New Document")
+        # if sizeOfCorpus == 1:
+        #     break
         print("start parse parquet")
         start1 = time.time()
         counter = 0
@@ -211,7 +211,7 @@ def run_engine(corpus_path, output_path, stemming):
     #saveAsJSON('.', 'inverted_idx', indexer.inverted_idx,"a")
     utils.save_obj(indexer.inverted_idx, output_path + '/inverted_idx')
     indexer.inverted_idx.clear()
-    print('inverted index is empty: ' , len(indexer.inverted_idx.keys()) == 0)
+    # print('inverted index is empty: ' , len(indexer.inverted_idx.keys()) == 0)
     print("Total time to write index: ", time.time() - start22)
     # saveAsJSON('.', 'posting' , indexer.postingDictionary)
     # utils.save_obj(indexer.inverted_idx, "inverted_idx")
@@ -233,8 +233,11 @@ def search_and_rank_query(query, inverted_index, k, output_path, vectorDict):
     p = Parse()
     start = time.time()
     query_as_dict = p.parse_sentence(query, term_dict={})
+    start_search = time.time()
+    print("start search")
     searcher = Searcher(inverted_index)
     relevant_docs = searcher.relevant_docs_from_posting(query_as_dict)
+    print("finished search ", time.time()-start_search )
     start_rank = time.time()
     ranked_docs, sorted_keys = searcher.ranker.rank_relevant_doc(relevant_docs, query_as_dict, inverted_index, output_path, vectorDict)  # { doc: 4, doc: 10}
     print('end rank ', time.time()-start_rank)
@@ -256,6 +259,7 @@ def main(corpus_path, output_path, stemming, queries, num_docs_to_retrieve):
     #run_engine(corpus_path, output_path, stemming)
     vectorsFile = utils.load_obj(output_path + '/PostingFiles/vectorsFile')
     inverted_index = load_index(output_path)
+    print('COVID-19 in inverted: ', len(inverted_index['covid-19'][1]))
     query = input("Please enter a query: ")
     num_docs_to_retrieve = int(input("Please enter number of docs to retrieve: "))
     for doc_tuple in search_and_rank_query(query, inverted_index, num_docs_to_retrieve, output_path+"/PostingFiles", vectorsFile):
