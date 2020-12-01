@@ -20,6 +20,7 @@ def update_relevant_terms(dictionary, relevant_terms, query_as_dict, inverted_in
 def build_association_matrix(inverted_index, query_as_dict, top100, output_path):
     not_in_RAM = [] # {term: [doc1, doc2]}
     relevant_terms = {}
+    print('cosSim size ', len(ranker.Ranker.topCosSim.keys()))
     for doc_id in top100:
         if not doc_id in ranker.Ranker.topCosSim.keys():
             not_in_RAM.append(doc_id)
@@ -27,7 +28,7 @@ def build_association_matrix(inverted_index, query_as_dict, top100, output_path)
             update_relevant_terms(ranker.Ranker.topCosSim[doc_id], relevant_terms, query_as_dict, inverted_index)
     if len(not_in_RAM) == 0:
         return
-
+    print('num of docs not in ram ', len(not_in_RAM))
     not_in_RAM = sorted(not_in_RAM)
     key_num = int(not_in_RAM[0] / indexer.jsonSize)
     data = ranker.readData(key_num, output_path)

@@ -7,7 +7,9 @@ from threading import Thread
 import threading
 import copy
 
-jsonSize = 750000
+import utils
+
+jsonSize = 100000
 
 
 class Indexer:
@@ -22,6 +24,7 @@ class Indexer:
         self.Locks = {}
         self.num_of_docs_in_corpus = 0
         self.json_key = 0
+        self.termsData = {}
 
     # def flushAll(self):
     #    se
@@ -40,12 +43,12 @@ class Indexer:
                 data[k] = sorted(data[k], key=lambda x: x[0])
         return data
 
-    def Flush(self, main_key,posting_dict):
-        print("Posting len: ",len(posting_dict))
-        if len(posting_dict.keys()) != 0:
-            with open(self.postingsPath + "/" + str(main_key) + ".json", 'w+') as file:
-                json.dump(posting_dict, file, indent=4, sort_keys=True)
-                file.close()
+    def Flush(self, main_key, data, output_path):
+        if len(data) != 0:
+            # with open(output_path + "/" + str(main_key) + ".json", 'w+') as file:
+            #     json.dump(data, file, indent=4, sort_keys=True)
+            #     file.close()
+            utils.save_obj(data,output_path + "/" + str(main_key))
 
 
     def checkFlushing(self, main_key, second_key, FlushAll):
@@ -103,26 +106,31 @@ class Indexer:
             l_term = term.lower()
             u_term = term.upper()
             if term in self.inverted_idx.keys():
-                # self.inverted_idx[term] += 1
                 self.inverted_idx[term][0] += document_dictionary[term]
-                self.inverted_idx[term][1] += [document_id]
+                self.inverted_idx[term][1][document_id] = [tweet_id, None, None]
             else:
                 # term is upper but lower in inverted index
                 if l_term in self.inverted_idx.keys():
                     self.inverted_idx[l_term][0] += document_dictionary[term]
-                    self.inverted_idx[l_term][1] += [document_id]
+                    self.inverted_idx[l_term][1][document_id] = [tweet_id, None, None]
+                    # self.inverted_idx[l_term][0] += document_dictionary[term]
+                    # self.inverted_idx[l_term][1] += [document_id]
                 # term is lower but upper in inverted index
                 elif u_term in self.inverted_idx.keys():
-                    self.inverted_idx[term] = [self.inverted_idx[u_term][0] + document_dictionary[term],
-                                               self.inverted_idx[u_term][1] + [document_id]]
+                    self.inverted_idx[term] = self.inverted_idx[u_term]
+                    self.inverted_idx[term][1][document_id] = [tweet_id, None, None]
+                    self.inverted_idx[term][0] += document_dictionary[term]
+                    # self.inverted_idx[term] = [self.inverted_idx[u_term][0] + document_dictionary[term],
+                    #                            self.inverted_idx[u_term][1] + [document_id]]
                     self.inverted_idx.pop(u_term)
                 # none exists in inverted index. append.
                 else:
-                    self.inverted_idx[term] = [document_dictionary[term], [document_id]]
+                    self.inverted_idx[term] =[document_dictionary[term], {document_id: [tweet_id, None, None]}]
         # Flush if needed
         if len(self.postingDictionary.keys()) > jsonSize-1:
             #threading.Thread(target=self.Flush, args=(self.json_key, self.postingDictionary.copy())).start()
-            self.Flush(self.json_key,self.postingDictionary)
+            #self.Flush(self.json_key,self.postingDictionary, self.postingsPath)
+            utils.save_obj(self.postingDictionary, self.postingsPath + '/' + str(self.json_key))
             self.postingDictionary.clear()
 
 
