@@ -1,3 +1,4 @@
+import csv
 import pickle
 
 
@@ -20,3 +21,14 @@ def load_obj(name):
     """
     with open(name + '.pkl', 'rb') as f:
         return pickle.load(f)
+
+def write_csv(data,outpath):
+    with open(outpath +'result.csv', 'w',newline='') as f:
+        write = csv.writer(f)
+        write.writerows(data)
+    f.close()
+
+def load_index(output_path):
+    print('Load inverted index')
+    inverted_idx = load_obj(output_path + '/inverted_idx')
+    return inverted_idx
