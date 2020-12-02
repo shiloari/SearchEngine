@@ -29,12 +29,17 @@ def updateVectorsFile(doc_id, data, inv_index, num_of_docs_in_corpus, vectorsDic
     vectorsDict[doc_id] = [{}, data[0]]
    # vectorsDict[doc_id][0] = {} #all terms in doc and tf_idf
     #vectorsDict[doc_id][1] = data[0]    #tweet id
+    gotInLoop = False
     for term in data[3].keys():
+        gotInLoop = True
         corrected_term = ranker.get_correct_term(term, inv_index)
         tf = data[3][term]/len(values)
         idf = math.log(num_of_docs_in_corpus / len(inv_index[corrected_term][1]), 2)
         tf_idf = tf*idf
         vectorsDict[doc_id][0][corrected_term] = tf_idf
+
+
+
         # sigmaTfidf += math.pow(tf_idf, 2)
     # norma_d = math.sqrt(sigmaTfidf)
     # v_norma_d = np.array(values)
@@ -129,7 +134,7 @@ def run_engine(corpus_path, output_path, stemming):
     config = ConfigClass()
     r = ReadFile(corpus_path=corpus_path)
     p = Parse(stemming)
-    indexer = Indexer(output_path)
+    m_Indexer = Indexer(output_path)
     # globList = []
 
     # folders = 0
@@ -173,7 +178,7 @@ def run_engine(corpus_path, output_path, stemming):
                 number_of_documents += 1
                 # index the document data
                 startIndex = time.time()
-                indexer.add_new_doc(parsed_document)
+                m_Indexer.add_new_doc(parsed_document)
                 indexingTime += time.time() - startIndex
                 counter += 1
                 counter2 += 1
@@ -194,7 +199,8 @@ def run_engine(corpus_path, output_path, stemming):
     print("End and start to full flush !")
     start22 = time.time()
     #indexer.Flush(indexer.json_key,indexer.postingDictionary, indexer.postingsPath)
-    utils.save_obj(indexer.postingDictionary, indexer.postingsPath + '/' + str(indexer.json_key))
+    if len(m_Indexer.postingDictionary) > 0:
+        utils.save_obj(m_Indexer.postingDictionary, m_Indexer.postingsPath + '/' + str(m_Indexer.json_key))
     #indexer.WriteCorpusSize()
     print("Total time to Flush: ",time.time() - start22)
     print("Total time to parse and index: ", time.time()-startCorpus)
@@ -202,15 +208,15 @@ def run_engine(corpus_path, output_path, stemming):
 
     print('Finished parsing and indexing. Starting to export files')
     start22 = time.time()
-    clearSingleEntities(indexer.inverted_idx, p, output_path, indexer.num_of_docs_in_corpus)
+    clearSingleEntities(m_Indexer.inverted_idx, p, output_path, m_Indexer.num_of_docs_in_corpus)
     # if not os.path.isdir(indexer.postingsPath + "/TermsData"):
     #     os.mkdir(indexer.postingsPath+ "/TermsData")
     # FlushTermsData(indexer.postingsPath + "/TermsData", indexer.termsData,indexer)
     print("Total time to clear entities: ", time.time() - start22)
     start22 = time.time()
     #saveAsJSON('.', 'inverted_idx', indexer.inverted_idx,"a")
-    utils.save_obj(indexer.inverted_idx, output_path + '/inverted_idx')
-    indexer.inverted_idx.clear()
+    utils.save_obj(m_Indexer.inverted_idx, output_path + '/inverted_idx')
+    m_Indexer.inverted_idx.clear()
     # print('inverted index is empty: ' , len(indexer.inverted_idx.keys()) == 0)
     print("Total time to write index: ", time.time() - start22)
     # saveAsJSON('.', 'posting' , indexer.postingDictionary)

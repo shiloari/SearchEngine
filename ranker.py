@@ -51,19 +51,19 @@ class Ranker:
                 #print('correcting term')
                 start_correct = time.time()
                 correted_term = get_correct_term(q_term, inverted_index)
-                print('finished correct ', time.time()-start_correct)
+               # print('finished correct ', time.time()-start_correct)
                 if correted_term in vectorDict[doc_id][0].keys():
                     start_compute = time.time()
                     qd += query_as_dict[q_term]*vectorDict[doc_id][0][correted_term]
-                    print('finished compute ', time.time()-start_compute)
+                #    print('finished compute ', time.time()-start_compute)
                     matches_counter += 1
-            print('finished matching ', time.time()-start_matching)
+           # print('finished matching ', time.time()-start_matching)
             start_norm = time.time()
             norm_D = norm(np.array(list(vectorDict[doc_id][0].values())))
-            print('finished norm ', time.time()-start_norm)
+           # print('finished norm ', time.time()-start_norm)
             matches_counter = matches_counter/num_of_terms_in_query
             ranking_Dict[doc_id] = [vectorDict[doc_id][1], matches_counter*qd/(norm_D*norm_Q)]
-            print('finished rank doc ', time.time()-start_doc)
+            #print('finished rank doc ', time.time()-start_doc)
         return ranking_Dict, sorted(ranking_Dict, key=lambda rank: ranking_Dict[rank][1], reverse=True)
 
     # fixed_query_dict = {}
