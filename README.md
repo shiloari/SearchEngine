@@ -1,3 +1,4 @@
 # Search_Engine
-The is a skeleton of a search engine project for your convenience.
-Please follow the instructions provided in the file: intructions.txt
+run the main function. give the engine list or path of queries, and number
+of docs to retrieve.
+

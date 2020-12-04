@@ -1,54 +1,52 @@
 import math
 import os
 import time
-import unicodedata
-import numpy as np
-from numpy.linalg import norm
 import indexer
 import local_method
 import ranker
+import reader
 from reader import ReadFile
 from configuration import ConfigClass
 from parser_module import Parse
 from indexer import Indexer
 from searcher import Searcher
 import utils
-import glob
 from pathlib import Path
 import json
 
 
-def saveAsJSON(path, file_name, to_be_saved,how_to):
-    file = open(path + "/" + file_name + ".json", how_to)
-    json.dump(to_be_saved, file, indent=4, sort_keys=True)
-    file.close()
-
 def updateVectorsFile(doc_id, data, inv_index, num_of_docs_in_corpus, vectorsDict):   #termsData = {term: [[doc_id, tweet_id, d, |d|]]}
+    """
+    :param doc_id: doc id
+    :param data: the vector to append
+    :param inv_index: inv_index
+    :param num_of_docs_in_corpus: #words
+    :param vectorsDict: the vectors dictionary to append to.
+    :return:
+    """
     values = list(data[3].values())
-    #sigmaTfidf =0
     vectorsDict[doc_id] = [{}, data[0]]
-   # vectorsDict[doc_id][0] = {} #all terms in doc and tf_idf
-    #vectorsDict[doc_id][1] = data[0]    #tweet id
-    gotInLoop = False
     for term in data[3].keys():
-        gotInLoop = True
+        #for each term, compute tf_idf and append to vector dictionary
         corrected_term = ranker.get_correct_term(term, inv_index)
         tf = data[3][term]/len(values)
         idf = math.log(num_of_docs_in_corpus / len(inv_index[corrected_term][1]), 2)
         tf_idf = tf*idf
         vectorsDict[doc_id][0][corrected_term] = tf_idf
 
-
-
-        # sigmaTfidf += math.pow(tf_idf, 2)
-    # norma_d = math.sqrt(sigmaTfidf)
-    # v_norma_d = np.array(values)
-    # norma_d = norm(v_norma_d)
-
 def clearSingleEntities(inv_index, parser, output_path, num_of_docs_in_corpus):
+    """
+    :param inv_index: inv_index
+    :param parser: parser
+    :param output_path: output_path
+    :param num_of_docs_in_corpus: #docs in corpus
+    :return:
+    """
     EntitiesDict = {}       #{doc_id: [term1,term2]}
     docs_to_clear = {}      # {pkl_id: [doc1 ,doc2]}
-    vectorsDict = {}
+    vectorsDict = {}    # {doc_id: normalized vectors}
+    # for each term in inv_index, check if should be cleared up.
+    # term will be cleared if it is a single entity or term in whole corpus.
     for term in inv_index.keys():
         if inv_index[term][0] == 1:
             single_doc = inv_index[term][1][0]
@@ -56,23 +54,21 @@ def clearSingleEntities(inv_index, parser, output_path, num_of_docs_in_corpus):
                 EntitiesDict[single_doc].append(term)
             else:
                 EntitiesDict[single_doc] = [term]
+    # if there's no entities to remove, return.
     if len(EntitiesDict.keys()) == 0:
         return
     sorted_keys = sorted(EntitiesDict.keys())   # all docs to clear
-    key_num = int(sorted_keys[0]/indexer.jsonSize)
+    key_num = int(sorted_keys[0] / indexer.postingSize)
     docs_to_clear[key_num] = []
     for doc_id in sorted_keys:
-        if doc_id >= (key_num + 1) * indexer.jsonSize:  # should get new data, update key_num
-            key_num = int(doc_id/indexer.jsonSize)
+        if doc_id >= (key_num + 1) * indexer.postingSize:  # should get new data, update key_num
+            key_num = int(doc_id / indexer.postingSize)
             docs_to_clear[key_num] = [doc_id]
         else:
             docs_to_clear[key_num] += [doc_id]
 
-    num_of_cleared_in_corpus = 0
     for pkl_key in docs_to_clear.keys():
         data = utils.load_obj(output_path + '/PostingFiles/' + str(pkl_key))
-        #data = ranker.readData(json_key, output_path+ '/PostingFiles')
-        counter = 0
         for doc_id in data.keys(): #key is now a string
             doc_idint = int(doc_id)
             if doc_idint in EntitiesDict.keys():
@@ -81,10 +77,6 @@ def clearSingleEntities(inv_index, parser, output_path, num_of_docs_in_corpus):
                         data[doc_id][1] -= data[doc_id][3][entity]
                         data[doc_id][3].pop(entity)
                         inv_index.pop(entity)
-                        if counter == 0:
-                            # print(entity)
-                            # print(entity in inv_index.keys())
-                            counter += 1
             values = data[doc_id][3].values()
             if len(values) != 0:
                 data[doc_id][2] = max(values)
@@ -96,177 +88,85 @@ def clearSingleEntities(inv_index, parser, output_path, num_of_docs_in_corpus):
     vectorsDict.clear()
     docs_to_clear.clear()
     EntitiesDict.clear()
-        # saveAsJSON(output_path + '/PostingFiles', str(json_key), data,"w")
 
 
-def FlushTermsData(output_path, termsData, indexer):
-    to_be_flushed = {}
-    sorted_terms = sorted(termsData)
-    main_key = sorted_terms[0][0].lower()
-    if not (main_key.isalpha() or main_key.isnumeric() or main_key == '@' or main_key == '#'):
-        main_key = "Garbage"
-    # print(main_key)
-    for term in sorted_terms:
-        l_term =term[0].lower()
-        if l_term != main_key:
-            utils.save_obj(to_be_flushed, output_path + '/' + main_key)
-            #indexer.Flush(main_key, to_be_flushed, output_path)
-            to_be_flushed = {}
-            if not (l_term.isalpha() or l_term.isnumeric() or l_term == '@' or l_term == '#'):
-                # print('key before change: ', main_key)
-                main_key = "Garbage"
-            else:
-                main_key = l_term
-            # print(main_key)
-        to_be_flushed[term] = termsData[term]
-    if len(to_be_flushed.keys()) != 0:
-        #indexer.Flush(main_key, to_be_flushed, output_path)
-        utils.save_obj(to_be_flushed, output_path + '/' + main_key)
-
-
-def run_engine(corpus_path, output_path, stemming):
+def run_engine(config):
     """
-
     :return:
     """
     number_of_documents = 0
-
-    config = ConfigClass()
-    r = ReadFile(corpus_path=corpus_path)
-    p = Parse(stemming)
+    output_path = config.savedFileMainFolder
+    r = ReadFile(corpus_path=config.get__corpusPath())
+    p = Parse(config.toStem)
     m_Indexer = Indexer(output_path)
-    # globList = []
-
-    # folders = 0
-    # for _, dirnames, _ in os.walk(corpus_path):
-    #     # ^ this idiom means "we won't be using this value"
-    #     folders += len(dirnames)
-    # progressBar = ''
-    # for i in range(folders):
-    #     progressBar += ' '
-    # progressBar = '[' + progressBar + ']'
-    # print(progressBar, ' 0%')
-    startCorpus = time.time()
-    start = time.time()
-    sizeOfCorpus = 0
-    for path in Path(corpus_path).rglob('*.parquet'):
-        parsingTime = 0
-        indexingTime = 0
-        # print("New Document")
-        # if sizeOfCorpus == 1:
-        #     break
-        print("start parse parquet")
-        start1 = time.time()
-        counter = 0
-        counter2 = 0
-        for idx, document in enumerate(r.read_file(file_name=path)):
-                # if sizeOfCorpus < 7 :
-                #     counter += 1
-                #     continue
-                # if counter <150000:
-                #     counter += 1
-                #     continue
-                # if counter > 24999:
-                #     print("parsed 25000 files in average time: ", (time.time()-start1)/25000)
-                #     counter = 0
-                #     start1 = time.time()
-                # print(idx)
-                # parse the document
-                startParse = time.time()
-                parsed_document = p.parse_doc(document)
-                parsingTime += time.time() - startParse
-                number_of_documents += 1
-                # index the document data
-                startIndex = time.time()
-                m_Indexer.add_new_doc(parsed_document)
-                indexingTime += time.time() - startIndex
-                counter += 1
-                counter2 += 1
-        print('-------------------------------------------------------------')
-        print("Time to whole parse parquet: " + str(time.time() - start))
-        print("Average time to parse tweet: " + str((time.time() - start)/counter2))
-        print('Parsing total time: ', parsingTime, ' | Indexing total time: ', indexingTime)
-        print('-------------------------------------------------------------')
-        start = time.time()
-        sizeOfCorpus += 1
-        # progressBar = progressBar[:idx] + '\x1b[6;30;42m' + 'X' + '\x1b[0m]' + progressBar[idx:]
-        # print(progressBar, ' ',  float(counter/folders),' %', end='\r')
-    # if(sizeOfCorpus == 0):
-    #     with open(indexer.outputPath + "/inverted_idx_save.json",'r') as file:
-    #         x = json.load(file)
-    #         file.close()
-    #indexer.inverted_idx = x.copy()
-    print("End and start to full flush !")
-    start22 = time.time()
-    #indexer.Flush(indexer.json_key,indexer.postingDictionary, indexer.postingsPath)
+    parquetPaths = []
+    for (dirPath, dirNames, fileNames) in os.walk(config.get__corpusPath()):
+        for fileName in fileNames:
+            parquetPaths.append((dirPath + '\\' + fileName))
+    for i in range(len(parquetPaths)):
+        parquetPaths[i] = parquetPaths[i][parquetPaths[i].find('\\') + 1:]
+        if ".DS_Store" in parquetPaths[i]:
+            continue
+        parquet = r.read_file(file_name=parquetPaths[i])
+        for document in parquet:
+            number_of_documents += 1
+            parsed_document = p.parse_doc(document)
+            # index the document data
+            m_Indexer.add_new_doc(parsed_document)
+    # if there's more postings to flush, do it.
     if len(m_Indexer.postingDictionary) > 0:
-        utils.save_obj(m_Indexer.postingDictionary, m_Indexer.postingsPath + '/' + str(m_Indexer.json_key))
-    #indexer.WriteCorpusSize()
-    print("Total time to Flush: ",time.time() - start22)
-    print("Total time to parse and index: ", time.time()-startCorpus)
-    #### save as json
-
-    print('Finished parsing and indexing. Starting to export files')
-    start22 = time.time()
+        utils.save_obj(m_Indexer.postingDictionary, m_Indexer.postingsPath + '/' + str(m_Indexer.pkl_key))
+    # Clear single terms and entities, updated inverted index to disk.
     clearSingleEntities(m_Indexer.inverted_idx, p, output_path, m_Indexer.num_of_docs_in_corpus)
-    # if not os.path.isdir(indexer.postingsPath + "/TermsData"):
-    #     os.mkdir(indexer.postingsPath+ "/TermsData")
-    # FlushTermsData(indexer.postingsPath + "/TermsData", indexer.termsData,indexer)
-    print("Total time to clear entities: ", time.time() - start22)
-    start22 = time.time()
-    #saveAsJSON('.', 'inverted_idx', indexer.inverted_idx,"a")
     utils.save_obj(m_Indexer.inverted_idx, output_path + '/inverted_idx')
     m_Indexer.inverted_idx.clear()
-    # print('inverted index is empty: ' , len(indexer.inverted_idx.keys()) == 0)
-    print("Total time to write index: ", time.time() - start22)
-    # saveAsJSON('.', 'posting' , indexer.postingDictionary)
-    # utils.save_obj(indexer.inverted_idx, "inverted_idx")
-    # utils.save_obj(indexer.postingDict, "posting")
-
+    utils.save_obj(number_of_documents,output_path+'/PostingFiles/num_of_docs_in_corpus')
 
 def load_index(output_path):
-    print('Load inverted index')
-    start = time.time()
-    # inverted_index = ("inverted_idx")
     inverted_idx = utils.load_obj(output_path + '/inverted_idx')
-    # with open(output_path + "/inverted_idx.json") as file:
-    #     inverted_idx = json.load(file)
-    print('Finito! : ',time.time() -start)
     return inverted_idx
 
-
-def search_and_rank_query(query, inverted_index, k, output_path, vectorDict):
-    p = Parse()
-    start = time.time()
+def search_and_rank_query(query, inverted_index, k, output_path, vectorDict,stemming):
+    p = Parse(stemming)
+    # parse query.
     query_as_dict = p.parse_sentence(query, term_dict={})
-    start_search = time.time()
-    print("start search")
-    searcher = Searcher(inverted_index)
-    relevant_docs = searcher.relevant_docs_from_posting(query_as_dict)
-    print("finished search ", time.time()-start_search )
-    start_rank = time.time()
+    if len(query_as_dict.keys())==0:
+        return []
+    searcher = Searcher(inverted_index,output_path)
+    # search for relevant docs given the query. min threshold is 100 docs.
+    relevant_docs = searcher.relevant_docs_from_posting(query_as_dict, 100, output_path)
+    # rank those docs and get the top 100 of them.
     ranked_docs, sorted_keys = searcher.ranker.rank_relevant_doc(relevant_docs, query_as_dict, inverted_index, output_path, vectorDict)  # { doc: 4, doc: 10}
-    print('end rank ', time.time()-start_rank)
     top_100_keys = searcher.ranker.retrieve_top_k(sorted_keys, 100)
-    matrix_start = time.time()
-    expanded_query = local_method.build_association_matrix(inverted_index, query_as_dict, top_100_keys, output_path, vectorDict)
-    print('matrix time ', time.time()-matrix_start)
-    start_rank = time.time()
+    # build association matrix and expand the query.
+    expanded_query = local_method.build_association_matrix(inverted_index, query_as_dict, top_100_keys, vectorDict)
+    # search again, with the expanded query.
+    relevant_docs = searcher.relevant_docs_from_posting(expanded_query, k, output_path)
+    # rank again and return the top K (given input) ranked.
     ranked_docs, sorted_keys = searcher.ranker.rank_relevant_doc(relevant_docs, expanded_query, inverted_index, output_path, vectorDict)  # { doc: 4, doc: 10}
-    print('end rank ', time.time()-start_rank)
     top_k_keys = searcher.ranker.retrieve_top_k(sorted_keys, k)
     top_K = []
-    for doc_id in top_100_keys:
+    for doc_id in top_k_keys:
         top_K.append(ranked_docs[doc_id])
-    print ("finish : ",time.time() -start)
     return top_K
 
 def main(corpus_path, output_path, stemming, queries, num_docs_to_retrieve):
-    #run_engine(corpus_path, output_path, stemming)
+    confing = ConfigClass(corpus_path, output_path, stemming)
+    # run engine: parse, index, and write to disk
+    run_engine(confing)
+    # read querires
+    if not isinstance(queries, list):
+        r = reader.ReadFile(corpus_path)
+        queries = r.read_queries(queries) # queries is a path to txt file.
+    # load inverted index and vectors file
     vectorsFile = utils.load_obj(output_path + '/PostingFiles/vectorsFile')
     inverted_index = load_index(output_path)
-    print('COVID-19 in inverted: ', len(inverted_index['covid-19'][1]))
-    query = input("Please enter a query: ")
-    num_docs_to_retrieve = int(input("Please enter number of docs to retrieve: "))
-    for doc_tuple in search_and_rank_query(query, inverted_index, num_docs_to_retrieve, output_path+"/PostingFiles", vectorsFile):
-        print('tweet id: {}, score (unique common words with query): {}'.format(doc_tuple[0], doc_tuple[1]))
+    # get all top ranked docs related to query.
+    for query in queries:
+        for doc_tuple in search_and_rank_query(query, inverted_index, num_docs_to_retrieve, output_path+"/PostingFiles", vectorsFile,stemming):
+            print('tweet id: {}, score (unique common words with query): {}'.format(doc_tuple[0], doc_tuple[1]))
+    # all_results = []
+    # for i, query in enumerate(queries):
+    #     for doc_tuple in search_and_rank_query(queries, inverted_index, num_docs_to_retrieve, output_path+"/PostingFiles", vectorsFile):
+    #         all_results.append((i+1, str(doc_tuple[0]), str(doc_tuple[1])))
+    #utils.write_csv(all_results,output_path)

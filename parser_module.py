@@ -1,63 +1,50 @@
-import fractions
-import time
 import unicodedata
-
 from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
-from numpy import unicode
-from numpy.compat import basestring
-
 import stemmer
 from document import Document
 import re
 import math
-from nltk.corpus import words
-
 
 class Parse:
 
     def __init__(self, Stemming = False):
         self.stop_words = stopwords.words('english')
-        extra_stop_words = ['i\'ll', 'i\'d', 'i\'m', 'i\'ve']
+        extra_stop_words = ['i\'ll', 'i\'d', 'i\'m', 'i\'ve'] #expand the stopwords
         self.stop_words = self.stop_words + extra_stop_words
-        self.FirstCharDict = {}
-        self.LenDict = {}
         self.Doc_ID = 0
         self.Stemmer = None
         if Stemming:
             self.Stemmer = stemmer.Stemmer()
 
-
     def isEntity(self, s):
-        return ' ' in s and s.isupper()
+        return ' ' in s and s.isupper() # Entity is more than one word and all capital (the word is after parsing)
 
     def CheckIfNumber(self, term):
+        """
+        :param term: term to check if number by the parser rules.
+        :return: the number without comas if it is a number, else None
+        """
         no_comas = term.replace(',', '')  # 2/3
         no_symbols = no_comas.replace('%', '').replace('$', '').replace('.', '')  # no_symbols = 453231.432
         if no_symbols.isnumeric() and (no_symbols == no_comas[:-1] or no_symbols == no_comas[1:]):
             return no_comas
         else:
             return None
-        """
-        ModifiedNumber = ""
-        numOfDigits = 0
-        for digit in term:
-            if not digit.isnumeric() and digit is not ',' and digit is not '.' and digit is not '%' and digit is not '$' or digit is '/' or digit is '-':
-                return None
-            if digit is ',':
-                continue
-            if digit.isnumeric():
-                numOfDigits += 1
-            ModifiedNumber += digit
-        return ModifiedNumber if numOfDigits > 0 else None
-        """
 
     def clearNonASCII(self, s):
+        """
+        :param s: string to clean from all non-ascii chars.
+        :return: the string cleaned up
+        """
         string_encode = s.encode("ascii", "ignore")
         string_decode = string_encode.decode()
         return string_decode
 
     def cleanEdgeChars(self, term):
+        """
+        :param term: term to be cleaned from edges from all un-important chars.
+        :return: the term cleaned up.
+        """
         stop = False
         while not stop:
             if len(term) < 2:
@@ -71,30 +58,27 @@ class Parse:
                 stop = True
         return term
 
-    ##Should recognize: Terms,Tags,Hashtags.
-    def parse_sentence(self, text, term_dict, isRetweet=False):
+    def parse_sentence(self, text, term_dict):
         """
         This function tokenize, remove stop words and apply lower case for every word within the text
-        :param text:
-        :return:
+        :param text to be parsed, and the document terms dictionary to be add to.
+        :return: the document's terms dictionary
         """
         index = 0
         delimiters = "[ \n]"
         terms = re.split(delimiters, text)
-        # Snip three dots (...) from end of unfinished sentence.
-        if terms[0] == 'RT':
+        if terms[0] == 'RT':    #un important popular term
             index = 1
         while index < len(terms):
-            # Check for the empty string or URL - shouldn't be parsed.
-            # if 'ऐ' in terms[index]:
-            #     print('here')
+            # Check for the empty string or URL - shouldn't be or already parsed.
             if terms[index].__eq__('') or terms[index][:13].__eq__("https://t.co/") or any(
                     unicodedata.category(char) == 'Lo' for char in terms[index]):
                 index += 1
                 continue
+            # UnicodeData can not be parsed in the Non-ASCII func.
             if not unicodedata.category(terms[index][-1]) == 'No':
                 terms[index] = self.clearNonASCII(terms[index])
-            # If last char of term is not relevant than remove it.
+            # clear all non-important chars from string edges.
             terms[index] = self.cleanEdgeChars(terms[index])
             if terms[index] is None or terms[index] == '':
                 index += 1
@@ -103,11 +87,11 @@ class Parse:
             if terms[index].lower() in self.stop_words:
                 index += 1
                 continue
-            # Parse as expression or entity
+            # Parse as expression or entity - recursive!
             if terms[index][0].isupper() and terms[index][0].isalpha():
                 index = self.parseCapitalLetterWord('', terms, index, term_dict)
                 continue
-            # Parse as number
+            # Parse as number, first check if pattern matches
             ModifiedNumber = self.CheckIfNumber(terms[index])
             if ModifiedNumber is not None:
                 NextTerm = None if (index == len(terms) - 1) or terms[index + 1] == '' else terms[index + 1]
@@ -130,19 +114,15 @@ class Parse:
             # Save term as is
             self.SaveTerm(terms[index], term_dict)
             index += 1
-
-        # text_tokens = word_tokenize(text)
-        # text_tokens_without_stopwords = [w.lower() for w in text_tokens if w not in self.stop_words]
-        # self.parseURL(text, term_dict)
         return term_dict
 
-    def checkFraction(self, fraction):
-        if fraction is None:
-            return False
-        values = fraction.split('/')
-        return len(values) == 2 and all(i.isdigit() for i in values)
 
     def SetSizeSymbol(self, nextTerm, number):
+        """
+        :param nextTerm: next term in list
+        :param number: current term in list - a number for sure
+        :return: the symbol to attach to the number if there should be one.
+        """
         Symbol = 'K' if (3 < len(number) < 7 or nextTerm == 'thousand') else \
             'M' if (6 < len(number) < 10 or nextTerm == 'million') else \
                 'B' if (len(number) > 9 or nextTerm == 'billion') \
@@ -150,6 +130,11 @@ class Parse:
         return Symbol
 
     def SetValueSymbol(self, nextTerm, splited):
+        """
+        :param nextTerm: the next term in list
+        :param splited: the current term splited by floating point
+        :return: % or $ if should be attached to number
+        """
         HasSecondElement = len(splited) > 1
         SecondElementNonEmpty = HasSecondElement and len(splited[1]) > 0
         valueSymbol = '%' if splited[0][0] == '%' or splited[0][-1] == '%' or (
@@ -162,11 +147,20 @@ class Parse:
         return valueSymbol
 
     def SetDivisor(self, number):
+        """
+        :param number: the term
+        :return: if number should be divided to match the parsing pattern
+        """
         Divisor = 1 if (len(number) < 4) else 1000 if 3 < len(number) < 7 else \
             1000000 if 6 < len(number) < 10 else 1000000000
         return Divisor
 
     def SetRemainder(self, splited, sizeSymbol):
+        """
+        :param splited: term splited
+        :param sizeSymbol: the size of term
+        :return: if there is a remainder, return it.
+        """
         Remainder = '0'
         # In case of large number
         if sizeSymbol != '' and len(splited[0]) > 3:
@@ -182,15 +176,23 @@ class Parse:
         return Remainder
 
     def SetNextTermWasUsed(self, nextTerm):
+        """
+        :param nextTerm: next term in sentence
+        :return: if next term matches any number patterns, return true.
+        """
         return nextTerm == 'thousand' or nextTerm == 'million' or nextTerm == 'billion' \
                or nextTerm == 'percent' or nextTerm == 'percentage' or nextTerm == 'buck' \
                or nextTerm == 'dollar' or False
 
     def checkForUnicode(self, number, fraction, term_dict):
-        fraction_is_not_unicode = True
+        """
+        :param number: the whole value of number.
+        :param fraction: the fraction.
+        :param term_dict: the dictionary of doc.
+        :return: if was unicode, parse it to number and return all parts of it
+        """
         number_is_not_unicode = True
         number_until_last_not_unicode = True
-        ################ 5,5    1/2, '',  20 1/2, '' 20
         # check each path - if unicode or not
         for i in range(0, len(number)):
             if unicodedata.category(number[i]) != 'Nd':
@@ -214,30 +216,7 @@ class Parse:
         else:
             return number, fraction, False
 
-        """
-        for digit in number:
-            try:
-                digit = str(int(digit))
-            except:
-                pass
-            if not 47 < int(ord(digit)) < 58 : #Not a regular digit.
-                try:
-                    splited =re.split("[.]",str(int(number[:-1])+float(unicodedata.numeric(number[-1]))))
-                    corrected_number = splited[0]
-                    remainder=splited[1]
-                except:
-                    try:
-                        corrected_number = int(unicodedata.numeric(number))
-                        remainder = fraction
-                    except:
-                        self.SaveTerm(number, term_dict)
-                        return number,fraction, True
-                return str(corrected_number), str(remainder), False
-        return number,fraction, False
-        """
-
     def parseNumber(self, number, nextTerm, term_dict):
-        # print("begin parse number: ", number)
         if nextTerm is not None:
             l_nextTerm = nextTerm.lower()
             l_nextTerm = l_nextTerm[:-1] if l_nextTerm[-1] is 's' else l_nextTerm
@@ -269,9 +248,6 @@ class Parse:
         try:
             int(splited[0])
         except:
-            # if len(splited[0]) > 1:
-            #     print("len splited[0]: ", len(splited[0]))
-            #     print(isinstance(splited[0], unicode))
             try:
                 corrected_number = str(float(splited[0][:-1]) + unicodedata.numeric(splited[0][-1]))
             except:
@@ -280,39 +256,19 @@ class Parse:
                 except:
                     self.SaveTerm(splited[0], term_dict)
                     return nextTermWasUsed
-            # else:
-            #     number = str(unicodedata.numeric(splited[0]))
-            # print("Before recursive call")
-            # print(corrected_number)
             return self.parseNumber(corrected_number, nextTerm, term_dict)
-        # print("splited[0]: ", splited[0])
         number = str(int(int(splited[0]) / Divisor) + valRemainder) + sizeSymbol + valueSymbol  # Connect all as string
         self.SaveTerm(number, term_dict)
         return nextTermWasUsed
 
-        """
-        nextTermWasUsed = self.SetNextTermWasUsed(nextTerm) # Check if next term is relevant to parsing.
-        splited = re.split('[./]', number)
-        allNumeric = splited[0].isnumeric() and (not len(splited) > 1 or splited[1].isnumeric()) #Allnumeric - all elements in splited are numeric.
-        Symbol = self.SetSymbol(allNumeric, nextTerm, splited) # Set the symbol if needed (K/M/B/%/$)
-        Divisor = self.SetDivisor(allNumeric, splited) # Set the divisor if needed (1/1,000/100,000/1,000,000)
-        if len(splited[0]) > 0 and (splited[0][-1] is '%' or splited[0][-1] is '$'): # floating point & symbol correction.
-            splited.append(splited[0][-1])
-            splited[0] = splited[0][:-1]
-        Percent_Dollar = True if (len(splited) > 1 and len(splited[1]) > 0 and splited[1][-1]) is '%' or (
-                len(splited) > 1 and len(splited[1]) > 0 and splited[1][-1]) is '$' else False 
-        if nextTermWasUsed or Symbol is '%' or Symbol is '$' or self.checkFraction(nextTerm):
-            Remainder = self.SetRemainder(splited, Percent_Dollar)
-            number = str((splited[0])) + (("{:.4f}".format(Remainder)[:-1])[1:] if not Remainder == 0 else "") + Symbol
-        else:
-            splited[0] = unicodedata.numeric(splited[0][-1])
-            fSplited = float(splited[0]) / Divisor
-            number = "{:.4f}".format(fSplited)[:-1] + Symbol
-        self.SaveTerm(number, term_dict)
-        return nextTermWasUsed
-    """
-
     def parseCapitalLetterWord(self, text, terms, index, term_dict):
+        """
+        :param text: the current text from recursive call
+        :param terms: all terms.
+        :param index: the current index in terms list.
+        :param term_dict: the dictionary.
+        :return: return the phrase.
+        """
         if index >= len(terms) or len(terms[index]) == 0 or not terms[index][0].isalpha() or terms[index][0].islower():
             return index
 
@@ -324,10 +280,7 @@ class Parse:
         if text != '':
             recursiveText = text + ' ' + recursiveText
             self.SaveCapital(recursiveText, term_dict)
-
-        # if index+1 < len(terms) and terms[index+1][0].isupper():
         index = self.parseCapitalLetterWord(recursiveText, terms, index + 1, term_dict)
-
         return index
 
     def SaveCapital(self, term, term_dict):
@@ -338,7 +291,7 @@ class Parse:
         upperText = term.upper()
         self.SaveTerm(upperText, term_dict)
 
-    def SaveTerm(self, term, term_dict):  # add boolean if last word in sen.
+    def SaveTerm(self, term, term_dict):
         term = term.replace('?', '').replace('!', '')
         l_term = term.lower()
         u_term = term.upper()
@@ -346,7 +299,7 @@ class Parse:
             return
         if term == '' or l_term in self.stop_words:
             return
-        wasCapital = (term[0] == u_term[0])
+        wasCapital = (term.isalpha() and term[0] == u_term[0])
         if self.Stemmer is not None:
             stemmed = self.Stemmer.stem_term(term)
             term = stemmed.upper() if wasCapital else stemmed.lower()
@@ -364,12 +317,11 @@ class Parse:
             term_dict[term] = 1
 
     def parseURL(self, text, term_dict):
-        url_stop_words = ['status', 'web', 'i', 'p']
+        url_stop_words = ['status', 'web', 'i', 'p'] #common url words with no meaning.
         parsed = re.split('"', text)
         if len(parsed) > 3:
             to_be_parsed = parsed[3]
             splited = re.split("[:/?=&+-]", to_be_parsed)
-            #self.SaveTerm(splited[0], term_dict)
             if splited[3][:3] == 'www':
                 self.SaveTerm(splited[3][4:], term_dict)
             else:
@@ -379,10 +331,11 @@ class Parse:
                     self.SaveTerm(term, term_dict)
 
     def parseHashTag(self, term, term_dict):
-        term = term.replace('#','')
+        term = term.replace('#','') #clear hashtag from #.
         if term == '':
             return
-        splitedByUnderScore = re.split('[_]', term)     #  #stayAtHome
+        #parse by underscore
+        splitedByUnderScore = re.split('[_]', term)
         result = '#'
         for term in splitedByUnderScore:
             splitedWords = re.split('(?=[A-Z])', term)
@@ -422,23 +375,13 @@ class Parse:
         retweet_quoted_text = doc_as_list[11]
         retweet_quoted_urls = doc_as_list[12]
         retweet_quoted_url_indices = doc_as_list[13]
-        # print(tweet_id)
-        # if tweet_id == '1283747919804329984':
-        #     print('asd')
-        term_dict = {}  # Number of appearances of term per document.
-        if url != '{}':
+        term_dict = {}  # Number of appearances of term for this document.
+        if url != '{}': #contains urls, parse them!
             self.parseURL(url, term_dict)
         if retweet_url is not None:
-            self.parseURL(retweet_url, term_dict)
-        # if retweet_quoted_urls is not None:
-        #     self.parseURL(retweet_quoted_urls, term_dict)
-        #start = time.time()
-        #full_text = "#MIFF 68½ wanders the world, offering a digital feast in lockdown @MIFFofficial https://theage.com.au/culture/movies/miff-68-wanders-the-world-offering-a-digital-feast-in-lockdown-20200715-p55c95.html via @theage"
+            self.parseURL(retweet_url, term_dict) #parse retweet urls
         tokenized_text = self.parse_sentence(full_text, term_dict)  # All tokens in document
-
-        # print(time.time() -start)
         doc_length = len(tokenized_text.keys())  # after text operations.
-
         document = Document(self.Doc_ID, tweet_id, tweet_date, full_text, url, retweet_text, retweet_url, quote_text,
                             quote_url, term_dict, doc_length)
         self.Doc_ID += 1

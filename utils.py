@@ -23,12 +23,11 @@ def load_obj(name):
         return pickle.load(f)
 
 def write_csv(data,outpath):
-    with open(outpath +'result.csv', 'w',newline='') as f:
+    with open(outpath +'/results.csv', 'w',newline='') as f:
         write = csv.writer(f)
         write.writerows(data)
     f.close()
 
-def load_index(output_path):
-    print('Load inverted index')
+def load_inverted_index(output_path = 'posting'):
     inverted_idx = load_obj(output_path + '/inverted_idx')
     return inverted_idx

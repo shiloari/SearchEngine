@@ -15,7 +15,7 @@ class Document:
         :param term_doc_dictionary: dictionary of term and documents.
         :param doc_length: doc length
         """
-        self.doc_id = doc_id
+        self.doc_id = doc_id  # each doc has it's own ID.
         self.tweet_id = tweet_id
         self.tweet_date = tweet_date
         self.full_text = full_text

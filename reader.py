@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import pyarrow.parquet as pq
+import re
 
 class ReadFile:
     def __init__(self, corpus_path):
@@ -16,3 +17,19 @@ class ReadFile:
         full_path = os.path.join(self.corpus_path, file_name)
         df = pd.read_parquet(full_path, engine = "pyarrow")
         return df.values.tolist()
+
+    def read_queries(self, path):
+        """
+        :param path: path to queries txt file
+        :return: the queries as list of strings.
+        """
+        queries = []
+        with open(path, 'r',encoding="utf8") as file:
+            lines = file.readlines()
+            for line in lines:
+                if line == '\n':
+                    continue
+                if line == '':
+                    break
+                queries.append(line)
+        return queries
